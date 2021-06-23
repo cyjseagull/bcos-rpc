@@ -103,6 +103,8 @@ public:
         bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, bcos::bytesConstRef _data);
 
 public:
+    decltype(auto) msgTypeToHandler() { return m_msgTypeToHandler; }
+
     std::shared_ptr<boost::asio::io_service> ioService() const { return m_ioService; }
     void setIoService(const std::shared_ptr<boost::asio::io_service> _ioService)
     {
