@@ -34,15 +34,7 @@ public:
     virtual ~AMOPInterface() = 0;
 
 public:
-    /**
-     * @brief: start amop module
-     * @return void
-     */
     virtual void start() = 0;
-    /**
-     * @brief: stop amop module
-     * @return void
-     */
     virtual void stop() = 0;
 
 public:
