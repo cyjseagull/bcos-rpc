@@ -43,6 +43,9 @@ HunterGate(
 project(bcos-rpc VERSION "3.0.0")
 set(VERSION_SUFFIX "")
 
+hunter_add_package(jsoncpp)
+find_package(jsoncpp CONFIG REQUIRED)
+
 # basic settings
 include(Options)
 configure_project()
@@ -54,9 +57,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 # install dependencies
 include(InstallBcosFrameworkDependencies)
 
-set(BCOS_RPC_TARGET "bcos-rpc")
+set(AMOP_TARGET "amop")
+# set(BCOS_RPC_TARGET "bcos-rpc")
 
-add_subdirectory(bcos-rpc)
+add_subdirectory(bcos-rpc/amop)
 
 if (TESTS)
     include(InstallBcosCryptoDependencies)
@@ -68,7 +72,7 @@ endif()
 include(InstallConfig)
 # install bcos rpc target
 install(
-    TARGETS ${BCOS_RPC_TARGET}
+    TARGETS ${AMOP_TARGET}
     EXPORT "${TARGETS_EXPORT_NAME}"
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
