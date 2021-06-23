@@ -46,8 +46,6 @@ public:
     virtual void stop() = 0;
 
 public:
-    // TODO: interfaces used by rpc
-public:
     /**
      * @brief: async receive message from front service
      * @param _nodeID: the message sender nodeID
