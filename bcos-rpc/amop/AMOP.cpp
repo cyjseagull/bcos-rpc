@@ -26,6 +26,8 @@
 #include <bcos-rpc/amop/AMOP.h>
 #include <bcos-rpc/amop/AMOPMessage.h>
 #include <bcos-rpc/amop/Common.h>
+#include <algorithm>
+#include <random>
 
 using namespace bcos;
 using namespace bcos::amop;
@@ -34,35 +36,49 @@ void AMOP::initMsgHandler()
 {
     auto self = std::weak_ptr<AMOP>(shared_from_this());
     m_msgTypeToHandler[AMOPMessageType::TopicSeq] =
-        [self](bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, bcos::bytesConstRef _data) {
+        [self](bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg) {
             auto amop = self.lock();
             if (amop)
             {
-                amop->onReceiveTopicSeqMessage(_nodeID, _id, _data);
+                amop->onReceiveTopicSeqMessage(_nodeID, _id, _msg);
             }
         };
 
     m_msgTypeToHandler[AMOPMessageType::RequestTopic] =
-        [self](bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, bcos::bytesConstRef _data) {
+        [self](bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg) {
             auto amop = self.lock();
             if (amop)
             {
-                amop->onReceiveRequestTopicMessage(_nodeID, _id, _data);
+                amop->onReceiveRequestTopicMessage(_nodeID, _id, _msg);
             }
         };
 
     m_msgTypeToHandler[AMOPMessageType::ResponseTopic] =
-        [self](bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, bcos::bytesConstRef _data) {
+        [self](bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg) {
             auto amop = self.lock();
             if (amop)
             {
-                amop->onReceiveResponseTopicMessage(_nodeID, _id, _data);
+                amop->onReceiveResponseTopicMessage(_nodeID, _id, _msg);
             }
         };
 
-    // m_msgTypeToHandler[AMOPMessageType::AMOPRequest] = nullptr;
-    // m_msgTypeToHandler[AMOPMessageType::AMOPResponse] = nullptr;
-    // m_msgTypeToHandler[AMOPMessageType::AMOPBroadcast] = nullptr;
+    m_msgTypeToHandler[AMOPMessageType::AMOPRequest] =
+        [self](bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg) {
+            auto amop = self.lock();
+            if (amop)
+            {
+                amop->onReceiveAMOPMessage(_nodeID, _id, _msg);
+            }
+        };
+
+    m_msgTypeToHandler[AMOPMessageType::AMOPBroadcast] =
+        [self](bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg) {
+            auto amop = self.lock();
+            if (amop)
+            {
+                amop->onReceiveAMOPBroadcastMessage(_nodeID, _id, _msg);
+            }
+        };
 }
 
 void AMOP::start()
@@ -110,14 +126,14 @@ void AMOP::stop()
     m_run = false;
     m_msgTypeToHandler.clear();
 
-    if (m_timer)
-    {
-        m_timer->cancel();
-    }
-
     if (m_ioService)
     {
         m_ioService->stop();
+    }
+
+    if (m_timer)
+    {
+        m_timer->cancel();
     }
 
     AMOP_LOG(INFO) << LOG_DESC("stop amop successfully");
@@ -131,7 +147,22 @@ void AMOP::stop()
  */
 std::shared_ptr<bytes> AMOP::buildEncodedMessage(uint32_t _type, bcos::bytesConstRef _data)
 {
-    auto message = m_messageFactory->buildMessage(_type, _data);
+    return buildEncodedMessage(_type, "", _data);
+}
+
+/**
+ * @brief: create message and encode the message to bytes
+ * @param _type: message type
+ * @param _data: message data
+ * @return std::shared_ptr<bytes>
+ */
+std::shared_ptr<bytes> AMOP::buildEncodedMessage(
+    uint32_t _type, const std::string& _topic, bcos::bytesConstRef _data)
+{
+    auto message = m_messageFactory->buildMessage();
+    message->setType(_type);
+    message->setData(_data);
+    message->setTopic(_topic);
     auto buffer = std::make_shared<bytes>();
     message->encode(*buffer.get());
     return buffer;
@@ -172,16 +203,17 @@ void AMOP::broadcastTopicSeq()
  * @brief: receive topicSeq from other nodes
  * @param _nodeID: the sender nodeID
  * @param _id: the message id
- * @param _data: message data
+ * @param _msg: message
  * @return void
  */
 void AMOP::onReceiveTopicSeqMessage(
-    bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, bcos::bytesConstRef _data)
+    bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg)
 {
     try
     {
-        uint32_t topicSeq = boost::lexical_cast<uint32_t>(std::string(_data.begin(), _data.end()));
-        if (!m_topicManager->checkTopicSeq(_nodeID->hex(), topicSeq))
+        uint32_t topicSeq =
+            boost::lexical_cast<uint32_t>(std::string(_msg->data().begin(), _msg->data().end()));
+        if (!m_topicManager->checkTopicSeq(_nodeID, topicSeq))
         {
             AMOP_LOG(TRACE) << LOG_DESC("onReceiveTopicSeqMessage")
                             << LOG_KV("nodeID", _nodeID->hex()) << LOG_KV("id", _id)
@@ -217,13 +249,13 @@ void AMOP::onReceiveTopicSeqMessage(
  * @brief: receive request topic message from other nodes
  * @param _nodeID: the sender nodeID
  * @param _id: the message id
- * @param _data: message data
+ * @param _msg: message
  * @return void
  */
 void AMOP::onReceiveRequestTopicMessage(
-    bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, bcos::bytesConstRef _data)
+    bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg)
 {
-    (void)_data;
+    (void)_msg;
     try
     {
         std::string topicJson = m_topicManager->queryTopicsSubByClient();
@@ -259,20 +291,20 @@ void AMOP::onReceiveRequestTopicMessage(
  * @brief: receive topic response message from other nodes
  * @param _nodeID: the sender nodeID
  * @param _id: the message id
- * @param _data: message data
+ * @param _msg: message
  * @return void
  */
 void AMOP::onReceiveResponseTopicMessage(
-    bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, bcos::bytesConstRef _data)
+    bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg)
 {
     try
     {
         uint32_t topicSeq;
         TopicItems topicItems;
-        std::string topicJson = std::string(_data.begin(), _data.end());
+        std::string topicJson = std::string(_msg->data().begin(), _msg->data().end());
         if (m_topicManager->parseTopicItemsJson(topicSeq, topicItems, topicJson))
         {
-            m_topicManager->updateSeqAndTopicsByNodeID(_nodeID->hex(), topicSeq, topicItems);
+            m_topicManager->updateSeqAndTopicsByNodeID(_nodeID, topicSeq, topicItems);
         }
     }
     catch (const std::exception& e)
@@ -281,6 +313,40 @@ void AMOP::onReceiveResponseTopicMessage(
                         << LOG_KV("nodeID", _nodeID->hex()) << LOG_KV("id", _id)
                         << LOG_KV("error", boost::diagnostic_information(e));
     }
+}
+
+/**
+ * @brief: receive amop message
+ * @param _nodeID: the sender nodeID
+ * @param _id: the message id
+ * @param _msg: message
+ * @return void
+ */
+void AMOP::onReceiveAMOPMessage(
+    bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg)
+{
+    auto topic = _msg->topic();
+    // TODO: push messages to one of subscribe topic's client, waiting for rpc impl
+    AMOP_LOG(DEBUG) << LOG_DESC("onReceiveAMOPMessage") << LOG_KV("nodeID", _nodeID->hex())
+                    << LOG_KV("nodeID", _nodeID->hex()) << LOG_KV("id", _id)
+                    << LOG_KV("topic", topic);
+}
+
+/**
+ * @brief: receive amop broadcast message
+ * @param _nodeID: the sender nodeID
+ * @param _id: the message id
+ * @param _msg: message
+ * @return void
+ */
+void AMOP::onReceiveAMOPBroadcastMessage(
+    bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg)
+{
+    auto topic = _msg->topic();
+    // TODO: push messages to subscribe topic's client, waiting for rpc impl
+    AMOP_LOG(DEBUG) << LOG_DESC("onReceiveAMOPBroadcastMessage") << LOG_KV("nodeID", _nodeID->hex())
+                    << LOG_KV("nodeID", _nodeID->hex()) << LOG_KV("id", _id)
+                    << LOG_KV("topic", topic);
 }
 
 /**
@@ -297,15 +363,16 @@ void AMOP::asyncNotifyAmopMessage(
     auto size = message->decode(_data);
     if (size < 0)
     {  // invalid format packet
-        AMOP_LOG(ERROR) << LOG_DESC("asyncNotifyAmopMessage") << LOG_KV("nodeID", _nodeID->hex())
-                        << LOG_KV("id", _id) << LOG_KV("data", *toHexString(_data));
+        AMOP_LOG(ERROR) << LOG_DESC("asyncNotifyAmopMessage illegal packet")
+                        << LOG_KV("nodeID", _nodeID->hex()) << LOG_KV("id", _id)
+                        << LOG_KV("data", *toHexString(_data));
         return;
     }
 
     auto it = m_msgTypeToHandler.find(message->type());
     if (it != m_msgTypeToHandler.end())
     {
-        it->second(_nodeID, _id, _data);
+        it->second(_nodeID, _id, message);
     }
     else
     {
@@ -324,15 +391,144 @@ void AMOP::asyncNotifyAmopMessage(
 void AMOP::asyncNotifyAmopNodeIDs(std::shared_ptr<const crypto::NodeIDs> _nodeIDs,
     std::function<void(bcos::Error::Ptr _error)> _callback)
 {
-    std::vector<std::string> hexNodeIDs;
-    std::for_each(_nodeIDs->begin(), _nodeIDs->end(),
-        [&hexNodeIDs](crypto::NodeIDPtr _nodeID) { hexNodeIDs.push_back(_nodeID->hex()); });
-
-    m_topicManager->updateOnlineNodeIDs(hexNodeIDs);
+    m_topicManager->updateOnlineNodeIDs(_nodeIDs ? *_nodeIDs.get() : bcos::crypto::NodeIDs());
     if (_callback)
     {
         _callback(nullptr);
     }
     AMOP_LOG(INFO) << LOG_DESC("onReceiveResponseTopicMessage")
-                   << LOG_KV("nodeIDs size", _nodeIDs->size());
+                   << LOG_KV("nodeIDs size", (_nodeIDs ? _nodeIDs->size() : 0));
+}
+
+/**
+ * @brief: async send message to random node subscribe _topic
+ * @param _topic: topic
+ * @param _data: message data
+ * @param _respFunc: callback
+ * @return void
+ */
+void AMOP::asyncSendMessage(const std::string& _topic, bcos::bytesConstRef _data,
+    std::function<void(bcos::Error::Ptr _error, bcos::bytesConstRef _data)> _respFunc)
+{
+    bcos::crypto::NodeIDs nodeIDs;
+    m_topicManager->queryNodeIDsByTopic(_topic, nodeIDs);
+    if (nodeIDs.empty())
+    {
+        // TODO: to define the specific error code
+        auto errorPtr = std::make_shared<Error>(bcos::protocol::CommonError::TIMEOUT,
+            "there has no node follow the topic, topic: " + _topic);
+        if (_respFunc)
+        {
+            _respFunc(errorPtr, bytesConstRef());
+        }
+
+        AMOP_LOG(WARNING) << LOG_DESC(
+                                 "asyncSendMessage there has no node follow the topic, topic: ")
+                          << LOG_KV("topic", _topic);
+        return;
+    }
+
+    auto buffer = buildEncodedMessage(AMOPMessageType::AMOPRequest, _topic, _data);
+
+    class RetrySender : public std::enable_shared_from_this<RetrySender>
+    {
+    public:
+        bcos::crypto::NodeIDs m_nodeIDs;
+        std::shared_ptr<bytes> m_buffer;
+        std::shared_ptr<bcos::front::FrontServiceInterface> m_frontServiceInterface;
+        std::function<void(bcos::Error::Ptr _error, bcos::bytesConstRef _data)> m_callback;
+
+    public:
+        void sendMessage()
+        {
+            if (m_nodeIDs.empty())
+            {
+                // TODO: to define the specific error code
+                auto errorPtr = std::make_shared<Error>(
+                    bcos::protocol::CommonError::TIMEOUT, "failed to send the message after retry");
+                if (m_callback)
+                {
+                    m_callback(errorPtr, bytesConstRef());
+                }
+
+                return;
+            }
+
+            // shuffle
+            std::random_device rd;
+            std::default_random_engine rng(rd());
+            std::shuffle(m_nodeIDs.begin(), m_nodeIDs.end(), rng);
+            auto nodeID = *m_nodeIDs.begin();
+            m_nodeIDs.erase(m_nodeIDs.begin());
+
+            auto weakPtr = std::weak_ptr<RetrySender>(shared_from_this());
+            // try to send message to node
+            m_frontServiceInterface->asyncSendMessageByNodeID(bcos::protocol::ModuleID::AMOP,
+                nodeID, bytesConstRef(m_buffer->data(), m_buffer->size()), 0,
+                [weakPtr, nodeID](Error::Ptr _error, bcos::crypto::NodeIDPtr _nodeID,
+                    bytesConstRef _data, const std::string& _id,
+                    bcos::front::ResponseFunc _respFunc) {
+                    (void)_respFunc;
+                    (void)_nodeID;
+                    auto self = weakPtr.lock();
+                    if (!self)
+                    {
+                        return;
+                    }
+                    if (_error && (_error->errorCode() != bcos::protocol::CommonError::SUCCESS))
+                    {
+                        AMOP_LOG(DEBUG) << LOG_DESC("RetrySender::sendMessage response error")
+                                        << LOG_KV("nodeID", nodeID->hex())
+                                        << LOG_KV("errorCode", _error->errorCode())
+                                        << LOG_KV("errorMessage", _error->errorMessage());
+                        // try again to send to another node
+                        self->sendMessage();
+                    }
+                    else
+                    {
+                        AMOP_LOG(DEBUG) << LOG_DESC("RetrySender::sendMessage response ok")
+                                        << LOG_KV("nodeID", nodeID->hex()) << LOG_KV("id", _id)
+                                        << LOG_KV("data size", _data.size());
+                        if (self->m_callback)
+                        {
+                            self->m_callback(nullptr, _data);
+                        }
+                    }
+                });
+        }
+    };
+
+    auto sender = std::make_shared<RetrySender>();
+    sender->m_nodeIDs = nodeIDs;
+    sender->m_buffer = buffer;
+    sender->m_frontServiceInterface = m_frontServiceInterface;
+    sender->m_callback = _respFunc;
+
+    // send message
+    sender->sendMessage();
+}
+
+/**
+ * @brief: async send message to all nodes subscribe _topic
+ * @param _topic: topic
+ * @param _data: message data
+ * @return void
+ */
+void AMOP::asyncSendBroadbastMessage(const std::string& _topic, bcos::bytesConstRef _data)
+{
+    bcos::crypto::NodeIDs nodeIDs;
+    m_topicManager->queryNodeIDsByTopic(_topic, nodeIDs);
+    if (nodeIDs.empty())
+    {
+        AMOP_LOG(WARNING) << LOG_DESC("asyncSendBroadbastMessage no node follow topic")
+                          << LOG_KV("topic", _topic);
+        return;
+    }
+
+    auto buffer = buildEncodedMessage(AMOPMessageType::AMOPBroadcast, _topic, _data);
+    m_frontServiceInterface->asyncSendMessageByNodeIDs(
+        bcos::protocol::ModuleID::AMOP, nodeIDs, bytesConstRef(buffer->data(), buffer->size()));
+
+    AMOP_LOG(DEBUG) << LOG_DESC("asyncSendBroadbastMessage") << LOG_KV("topic", _topic)
+                    << LOG_KV("data size", _data.size());
 }

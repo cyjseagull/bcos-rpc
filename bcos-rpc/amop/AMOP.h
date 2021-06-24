@@ -61,6 +61,23 @@ public:
     virtual void asyncNotifyAmopNodeIDs(std::shared_ptr<const crypto::NodeIDs> _nodeIDs,
         std::function<void(bcos::Error::Ptr _error)> _callback) override;
 
+    /**
+     * @brief: async send message to random node subscribe _topic
+     * @param _topic: topic
+     * @param _data: message data
+     * @param _respFunc: callback
+     * @return void
+     */
+    virtual void asyncSendMessage(const std::string& _topic, bcos::bytesConstRef _data,
+        std::function<void(bcos::Error::Ptr _error, bcos::bytesConstRef _data)> _respFunc);
+    /**
+     * @brief: async send message to all nodes subscribe _topic
+     * @param _topic: topic
+     * @param _data: message data
+     * @return void
+     */
+    virtual void asyncSendBroadbastMessage(const std::string& _topic, bcos::bytesConstRef _data);
+
 public:
     /**
      * @brief: create message and encode the message to bytes
@@ -70,6 +87,14 @@ public:
      */
     std::shared_ptr<bytes> buildEncodedMessage(uint32_t _type, bcos::bytesConstRef _data);
     /**
+     * @brief: create message and encode the message to bytes
+     * @param _type: message type
+     * @param _data: message data
+     * @return std::shared_ptr<bytes>
+     */
+    std::shared_ptr<bytes> buildEncodedMessage(
+        uint32_t _type, const std::string& _topic, bcos::bytesConstRef _data);
+    /**
      * @brief: periodically send topicSeq to all other nodes
      * @return void
      */
@@ -78,29 +103,47 @@ public:
      * @brief: receive topicSeq from other nodes
      * @param _nodeID: the sender nodeID
      * @param _id: the message id
-     * @param _data: message data
+     * @param _msg: message
      * @return void
      */
     void onReceiveTopicSeqMessage(
-        bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, bcos::bytesConstRef _data);
+        bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg);
     /**
      * @brief: receive request topic message from other nodes
      * @param _nodeID: the sender nodeID
      * @param _id: the message id
-     * @param _data: message data
+     * @param _msg: message
      * @return void
      */
     void onReceiveRequestTopicMessage(
-        bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, bcos::bytesConstRef _data);
+        bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg);
     /**
      * @brief: receive topic response message from other nodes
      * @param _nodeID: the sender nodeID
      * @param _id: the message id
-     * @param _data: message data
+     * @param _msg: message
      * @return void
      */
     void onReceiveResponseTopicMessage(
-        bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, bcos::bytesConstRef _data);
+        bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg);
+    /**
+     * @brief: receive amop message
+     * @param _nodeID: the sender nodeID
+     * @param _id: the message id
+     * @param _msg: message
+     * @return void
+     */
+    void onReceiveAMOPMessage(
+        bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg);
+    /**
+     * @brief: receive broadcast message
+     * @param _nodeID: the sender nodeID
+     * @param _id: the message id
+     * @param _msg: message
+     * @return void
+     */
+    void onReceiveAMOPBroadcastMessage(
+        bcos::crypto::NodeIDPtr _nodeID, const std::string& _id, AMOPMessage::Ptr _msg);
 
 public:
     decltype(auto) msgTypeToHandler() { return m_msgTypeToHandler; }
@@ -141,7 +184,7 @@ private:
     std::shared_ptr<boost::asio::io_service> m_ioService;
 
     std::unordered_map<uint16_t, std::function<void(bcos::crypto::NodeIDPtr _nodeID,
-                                     const std::string& _id, bcos::bytesConstRef _data)>>
+                                     const std::string& _id, AMOPMessage::Ptr _msg)>>
         m_msgTypeToHandler;
 };
 }  // namespace amop

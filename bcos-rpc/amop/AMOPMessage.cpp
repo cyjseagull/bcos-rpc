@@ -29,7 +29,8 @@ void AMOPMessage::encode(bcos::bytes& _buffer)
     if (m_topic.size() > MAX_TOPIC_LENGTH)
     {
         throw std::length_error(
-            "the topic length longer than the maximum allowed(65535), topic:" + m_topic);
+            "the topic length longer than the maximum allowed(65535), topic size:" +
+            std::to_string(m_topic.size()));
     }
 
     uint16_t type = boost::asio::detail::socket_ops::host_to_network_short(m_type);
