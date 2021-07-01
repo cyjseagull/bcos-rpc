@@ -19,7 +19,7 @@
  */
 #pragma once
 
-#include <bcos-rpc/amop/AMOPInterface.h>
+#include <bcos-framework/interfaces/amop/AMOPInterface.h>
 #include <bcos-rpc/amop/AMOPMessage.h>
 #include <bcos-rpc/amop/TopicManager.h>
 #include <boost/asio.hpp>
