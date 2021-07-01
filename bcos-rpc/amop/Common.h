@@ -24,8 +24,8 @@
 #include <string>
 #include <vector>
 
-#define TOPIC_LOG(LEVEL) LOG(LEVEL) << "[AMOP][TOPIC]"
-#define AMOP_LOG(LEVEL) LOG(LEVEL) << "[AMOP][AMOP]"
+#define TOPIC_LOG(LEVEL) BCOS_LOG(LEVEL) << "[AMOP][TOPIC]"
+#define AMOP_LOG(LEVEL) BCOS_LOG(LEVEL) << "[AMOP][AMOP]"
 namespace bcos
 {
 namespace amop
