@@ -137,8 +137,7 @@ Rpc::Ptr RpcFactory::buildRpc(const RpcConfig& _rpcConfig)
     uint16_t _listenPort = _rpcConfig.m_listenPort;
     std::size_t _threadCount = _rpcConfig.m_threadCount;
 
-    // TODO: for test
-    // checkParams();
+    checkParams();
 
     auto rpc = std::make_shared<Rpc>();
     auto jsonRpcInterface = std::make_shared<bcos::rpc::JsonRpcImpl_2_0>();

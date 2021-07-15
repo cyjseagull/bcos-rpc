@@ -7,8 +7,10 @@
 // Official repository: https://github.com/boostorg/beast
 //
 
-#include <bcos-rpc/rpc/RpcFactory.h>
+#include <bcos-rpc/rpc/http/HttpServer.h>
+#include <bcos-rpc/rpc/jsonrpc/JsonRpcImpl_2_0.h>
 #include <iostream>
+#include <thread>
 
 //------------------------------------------------------------------------------
 // Accepts incoming connections and launches the Sessions
@@ -29,15 +31,13 @@ int main(int argc, char* argv[])
     auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
     auto const threads = std::max<int>(1, std::thread::hardware_concurrency());
 
-    auto factory = std::make_shared<bcos::rpc::RpcFactory>();
+    auto jsonRpcInterface = std::make_shared<bcos::rpc::JsonRpcImpl_2_0>();
+    auto httpServerFactory = std::make_shared<bcos::http::HttpServerFactory>();
+    auto httpServer = httpServerFactory->buildHttpServer(address, port, threads);
+    httpServer->setRequestHandler(std::bind(&bcos::rpc::JsonRpcImpl_2_0::onRPCRequest,
+        jsonRpcInterface, std::placeholders::_1, std::placeholders::_2));
 
-    bcos::rpc::RpcConfig config;
-    config.m_threadCount = threads;
-    config.m_listenIP = address;
-    config.m_listenPort = port;
-
-    auto rpc = factory->buildRpc(config);
-    rpc->start();
+    httpServer->startListen();
 
     while (true)
     {
