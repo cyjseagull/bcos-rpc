@@ -20,13 +20,59 @@
  */
 
 #include <bcos-framework/libutilities/Exceptions.h>
+#include <bcos-framework/libutilities/FileUtility.h>
 #include <bcos-rpc/rpc/RpcFactory.h>
 #include <bcos-rpc/rpc/http/HttpServer.h>
 #include <bcos-rpc/rpc/jsonrpc/JsonRpcImpl_2_0.h>
+#include <boost/property_tree/ini_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 
 using namespace bcos;
 using namespace bcos::rpc;
 using namespace bcos::http;
+
+void RpcConfig::initConfig(const std::string& _configPath)
+{
+    try
+    {
+        boost::property_tree::ptree pt;
+        boost::property_tree::ini_parser::read_ini(_configPath, pt);
+        /*
+        [rpc]
+            listen_ip=0.0.0.0
+            listen_port=30300
+            thread_count=16
+        */
+        std::string listenIP = pt.get<std::string>("rpc.listen_ip", "0.0.0.0");
+        int listenPort = pt.get<int>("rpc.listen_port", 20200);
+        int threadCount = pt.get<int>("rpc.thread_count", 8);
+
+        auto validPort = [](int port) -> bool { return (port <= 65535 && port > 1024); };
+        if (!validPort(listenPort))
+        {
+            BOOST_THROW_EXCEPTION(
+                InvalidParameter() << errinfo_comment(
+                    "initConfig: invalid rpc listen port, port=" + std::to_string(listenPort)));
+        }
+
+        m_listenIP = listenIP;
+        m_listenPort = listenPort;
+        m_threadCount = threadCount;
+
+        RPC_FACTORY(INFO) << LOG_DESC("initConfig") << LOG_KV("listenIP", listenIP)
+                          << LOG_KV("listenPort", listenPort) << LOG_KV("threadCount", threadCount);
+    }
+    catch (const std::exception& e)
+    {
+        boost::filesystem::path full_path(boost::filesystem::current_path());
+        RPC_FACTORY(ERROR) << LOG_DESC("initConfig") << LOG_KV("configPath", _configPath)
+                           << LOG_KV("currentPath", full_path.string())
+                           << LOG_KV("error: ", boost::diagnostic_information(e));
+        BOOST_THROW_EXCEPTION(
+            InvalidParameter() << errinfo_comment("initConfig: currentPath:" + full_path.string() +
+                                                  " ,error:" + boost::diagnostic_information(e)));
+    }
+}
 
 void RpcFactory::checkParams()
 {
@@ -69,15 +115,28 @@ void RpcFactory::checkParams()
 }
 
 /**
- * @brief:  Rpc
- * @param _listenIP: listen ip
- * @param _listenPort: listen port
- * @param _threadCount: thread count
+ * @brief: Rpc
+ * @param _configPath: rpc config path
  * @return Rpc::Ptr:
  */
-Rpc::Ptr RpcFactory::buildRpc(
-    const std::string& _listenIP, uint16_t _listenPort, std::size_t _threadCount)
+Rpc::Ptr RpcFactory::buildRpc(const std::string& _configPath)
 {
+    RpcConfig rpcConfig;
+    rpcConfig.initConfig(_configPath);
+    return buildRpc(rpcConfig);
+}
+
+/**
+ * @brief: Rpc
+ * @param _rpcConfig: rpc config
+ * @return Rpc::Ptr:
+ */
+Rpc::Ptr RpcFactory::buildRpc(const RpcConfig& _rpcConfig)
+{
+    const std::string _listenIP = _rpcConfig.m_listenIP;
+    uint16_t _listenPort = _rpcConfig.m_listenPort;
+    std::size_t _threadCount = _rpcConfig.m_threadCount;
+
     // TODO: for test
     // checkParams();
 

@@ -30,7 +30,13 @@ int main(int argc, char* argv[])
     auto const threads = std::max<int>(1, std::thread::hardware_concurrency());
 
     auto factory = std::make_shared<bcos::rpc::RpcFactory>();
-    auto rpc = factory->buildRpc(address, port, threads);
+
+    bcos::rpc::RpcConfig config;
+    config.m_threadCount = threads;
+    config.m_listenIP = address;
+    config.m_listenPort = port;
+
+    auto rpc = factory->buildRpc(config);
     rpc->start();
 
     while (true)

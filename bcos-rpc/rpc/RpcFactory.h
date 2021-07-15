@@ -31,6 +31,16 @@ namespace bcos
 {
 namespace rpc
 {
+// rpc config
+struct RpcConfig
+{
+    std::string m_listenIP;
+    uint16_t m_listenPort;
+    std::size_t m_threadCount;
+
+    void initConfig(const std::string& _configPath);
+};
+
 class RpcFactory : public std::enable_shared_from_this<RpcFactory>
 {
 public:
@@ -39,13 +49,17 @@ public:
 public:
     /**
      * @brief: Rpc
-     * @param _listenIP: listen ip
-     * @param _listenPort: listen port
-     * @param _threadCount: thread count
+     * @param _rpcConfig: rpc config
      * @return Rpc::Ptr:
      */
-    Rpc::Ptr buildRpc(const std::string& _listenIP, uint16_t _listenPort,
-        std::size_t _threadCount = std::max<int>(4, std::thread::hardware_concurrency()));
+    Rpc::Ptr buildRpc(const RpcConfig& _rpcConfig);
+
+    /**
+     * @brief: Rpc
+     * @param _configPath: rpc config path
+     * @return Rpc::Ptr:
+     */
+    Rpc::Ptr buildRpc(const std::string& _configPath);
 
 public:
     bcos::ledger::LedgerInterface::Ptr ledger() const { return m_ledgerInterface; }
