@@ -50,6 +50,9 @@ find_package(jsoncpp CONFIG REQUIRED)
 include(Options)
 configure_project()
 include(CompilerSettings)
+include(InstallConfig)
+# install the include files for hash
+include(InstallInclude)
 
 include_directories(${CMAKE_INSTALL_INCLUDEDIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
@@ -57,9 +60,12 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 # install dependencies
 include(InstallBcosFrameworkDependencies)
 
+set(RPC_TARGET "rpc")
 set(AMOP_TARGET "amop")
-# set(BCOS_RPC_TARGET "bcos-rpc")
+set(JSONRPC_TARGET "jsonrpc")
+set(HTTP_TARGET "http")
 
+add_subdirectory(bcos-rpc/rpc)
 add_subdirectory(bcos-rpc/amop)
 
 if (TESTS)
@@ -69,7 +75,6 @@ if (TESTS)
     add_subdirectory(test)
 endif()
 
-include(InstallConfig)
 # install bcos rpc target
 install(
     TARGETS ${AMOP_TARGET}
@@ -79,8 +84,7 @@ install(
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
     INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
-# install the include files for hash
-include(InstallInclude)
+
 
 # for doxygen
 include(BuildDocs)
