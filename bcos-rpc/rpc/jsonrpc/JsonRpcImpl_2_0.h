@@ -22,6 +22,7 @@
 #pragma once
 #include <bcos-framework/interfaces/consensus/ConsensusInterface.h>
 #include <bcos-framework/interfaces/executor/ExecutorInterface.h>
+#include <bcos-framework/interfaces/gateway/GatewayInterface.h>
 #include <bcos-framework/interfaces/ledger/LedgerInterface.h>
 #include <bcos-framework/interfaces/sync/BlockSyncInterface.h>
 #include <bcos-framework/interfaces/txpool/TxPoolInterface.h>
@@ -53,7 +54,12 @@ public:
     static void parseRpcResponseJson(const std::string& _responseBody, JsonResponse& _jsonResponse);
     static Json::Value toJsonResponse(const JsonResponse& _jsonResponse);
     static std::string toStringResponse(const JsonResponse& _jsonResponse);
-    static void toJsonResp(Json::Value& jResp, bcos::protocol::Transaction::Ptr _transactionPtr);
+    static void toJsonResp(
+        Json::Value& jResp, bcos::protocol::Transaction::ConstPtr _transactionPtr);
+
+    static void toJsonResp(Json::Value& jResp, bcos::protocol::BlockHeader::Ptr _blockHeaderPtr);
+    static void toJsonResp(
+        Json::Value& jResp, bcos::protocol::Block::Ptr _blockPtr, bool _onlyTxHash);
     static void toJsonResp(
         Json::Value& jResp, bcos::protocol::TransactionReceipt::ConstPtr _transactionReceiptPtr);
     static void addProofToResponse(
@@ -74,11 +80,11 @@ public:
     virtual void getTransactionReceipt(
         const std::string& _txHash, bool _requireProof, RespFunc _respFunc) override;
 
-    virtual void getBlockByHash(
-        const std::string& _blockHash, bool _onlyHeader, RespFunc _respFunc) override;
+    virtual void getBlockByHash(const std::string& _blockHash, bool _onlyHeader, bool _onlyTxHash,
+        RespFunc _respFunc) override;
 
     virtual void getBlockByNumber(
-        int64_t _blockNumber, bool _onlyHeader, RespFunc _respFunc) override;
+        int64_t _blockNumber, bool _onlyHeader, bool _onlyTxHash, RespFunc _respFunc) override;
 
     virtual void getBlockHashByNumber(int64_t _blockNumber, RespFunc _respFunc) override;
 
@@ -127,12 +133,14 @@ public:
 
     void getBlockByHashI(const Json::Value& req, RespFunc _respFunc)
     {
-        getBlockByHash(req[0u].asString(), req[1u].asBool(), _respFunc);
+        getBlockByHash(req[0u].asString(), (req.size() > 1 ? req[1u].asBool() : true),
+            (req.size() > 2 ? req[2u].asBool() : true), _respFunc);
     }
 
     void getBlockByNumberI(const Json::Value& req, RespFunc _respFunc)
     {
-        getBlockByNumber(req[0u].asInt64(), req[1u].asBool(), _respFunc);
+        getBlockByNumber(req[0u].asInt64(), (req.size() > 1 ? req[1u].asBool() : true),
+            (req.size() > 2 ? req[2u].asBool() : true), _respFunc);
     }
 
     void getBlockHashByNumberI(const Json::Value& req, RespFunc _respFunc)
@@ -263,6 +271,9 @@ public:
         m_transactionFactory = _transactionFactory;
     }
 
+    void setNodeInfo(const NodeInfo& _nodeInfo) { m_nodeInfo = _nodeInfo; }
+    NodeInfo nodeInfo() const { return m_nodeInfo; }
+
 private:
     std::unordered_map<std::string, std::function<void(Json::Value, RespFunc _respFunc)>>
         m_methodToFunc;
@@ -273,6 +284,7 @@ private:
     bcos::consensus::ConsensusInterface::Ptr m_consensusInterface;
     bcos::sync::BlockSyncInterface::Ptr m_blockSyncInterface;
     bcos::protocol::TransactionFactory::Ptr m_transactionFactory;
+    NodeInfo m_nodeInfo;
 };
 
 }  // namespace rpc

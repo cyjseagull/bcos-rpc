@@ -26,6 +26,9 @@
 #include <bcos-framework/libutilities/Log.h>
 #include <bcos-rpc/rpc/jsonrpc/Common.h>
 #include <bcos-rpc/rpc/jsonrpc/JsonRpcImpl_2_0.h>
+#include <boost/archive/iterators/base64_from_binary.hpp>
+#include <boost/archive/iterators/binary_from_base64.hpp>
+#include <boost/archive/iterators/transform_width.hpp>
 #include <boost/exception/diagnostic_information.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
@@ -33,6 +36,8 @@
 
 using namespace bcos;
 using namespace bcos::rpc;
+using namespace boost::iterators;
+using namespace boost::archive::iterators;
 
 void JsonRpcImpl_2_0::initMethod()
 {
@@ -84,7 +89,6 @@ void JsonRpcImpl_2_0::initMethod()
 std::string JsonRpcImpl_2_0::encodeData(bcos::bytesConstRef _data)
 {
     return base64Encode(_data);
-    // *bcos::toHexString(*_codeData)
 }
 
 std::shared_ptr<bcos::bytes> JsonRpcImpl_2_0::decodeData(const std::string& _data)
@@ -330,6 +334,143 @@ void JsonRpcImpl_2_0::onRPCRequest(const std::string& _requestBody, Sender _send
                         << LOG_KV("response", strResp);
 }
 
+void JsonRpcImpl_2_0::toJsonResp(
+    Json::Value& jResp, bcos::protocol::Transaction::ConstPtr _transactionPtr)
+{
+    // transaction version
+    jResp["version"] = _transactionPtr->version();
+    // transaction hash
+    jResp["hash"] = toHexStringWithPrefix(_transactionPtr->hash());
+    // transaction nonce
+    jResp["nonce"] = _transactionPtr->nonce().str(16);
+    // blockLimit
+    jResp["blockLimit"] = _transactionPtr->blockLimit();
+    // the receiver address
+    jResp["to"] = toHexStringWithPrefix(_transactionPtr->to());
+    // the sender address
+    jResp["from"] = toHexStringWithPrefix(_transactionPtr->sender());
+    // the input data
+    jResp["input"] = encodeData(_transactionPtr->input());
+    // importTime
+    jResp["importTime"] = _transactionPtr->importTime();
+    // the chainID
+    jResp["chainID"] = std::string(_transactionPtr->chainId());
+    // the groupID
+    jResp["groupID"] = std::string(_transactionPtr->groupId());
+    // the signature
+    jResp["signature"] = toHexStringWithPrefix(_transactionPtr->signatureData());
+}
+
+void JsonRpcImpl_2_0::toJsonResp(
+    Json::Value& jResp, bcos::protocol::TransactionReceipt::ConstPtr _transactionReceiptPtr)
+{
+    jResp["version"] = _transactionReceiptPtr->version();
+    jResp["contractAddress"] = toHexStringWithPrefix(_transactionReceiptPtr->contractAddress());
+    jResp["gasUsed"] = _transactionReceiptPtr->gasUsed().str(16);
+    jResp["bloom"] = toHexStringWithPrefix(_transactionReceiptPtr->bloom());
+    jResp["status"] = _transactionReceiptPtr->status();
+    jResp["blockNumber"] = _transactionReceiptPtr->blockNumber();
+    jResp["output"] = encodeData(_transactionReceiptPtr->output());
+    jResp["transactionHash"] = _transactionReceiptPtr->hash().hexPrefixed();
+    jResp["logEntries"] = Json::Value(Json::arrayValue);
+    for (const auto& logEntry : _transactionReceiptPtr->logEntries())
+    {
+        Json::Value jLog;
+        jLog["address"] = toHexStringWithPrefix(logEntry.address());
+        jLog["topic"] = Json::Value(Json::arrayValue);
+        for (const auto& topic : logEntry.topics())
+        {
+            jLog["topic"].append(topic.hexPrefixed());
+        }
+        jLog["data"] = encodeData(logEntry.data());
+
+        jResp["logEntries"].append(jLog);
+    }
+}
+
+
+void JsonRpcImpl_2_0::toJsonResp(
+    Json::Value& jResp, bcos::protocol::BlockHeader::Ptr _blockHeaderPtr)
+{
+    if (!_blockHeaderPtr)
+    {
+        return;
+    }
+
+    jResp["hash"] = toHexStringWithPrefix(_blockHeaderPtr->hash());
+    jResp["version"] = _blockHeaderPtr->version();
+    jResp["txsRoot"] = toHexStringWithPrefix(_blockHeaderPtr->txsRoot());
+    jResp["receiptRoot"] = toHexStringWithPrefix(_blockHeaderPtr->receiptsRoot());
+    jResp["stateRoot"] = toHexStringWithPrefix(_blockHeaderPtr->stateRoot());
+    jResp["blockNumber"] = _blockHeaderPtr->number();
+    jResp["gasUsed"] = _blockHeaderPtr->gasUsed().str(16);
+    jResp["timestamp"] = _blockHeaderPtr->timestamp();
+    jResp["sealer"] = _blockHeaderPtr->sealer();
+    jResp["extraData"] = toHexStringWithPrefix(_blockHeaderPtr->extraData());
+
+    jResp["consensusWeights"] = Json::Value(Json::arrayValue);
+    for (const auto& wei : _blockHeaderPtr->consensusWeights())
+    {
+        jResp["consensusWeights"].append(wei);
+    }
+
+    jResp["sealerList"] = Json::Value(Json::arrayValue);
+    for (const auto& sealer : _blockHeaderPtr->sealerList())
+    {
+        jResp["sealerList"].append(toHexStringWithPrefix(sealer));
+    }
+
+    Json::Value jParentInfo(Json::arrayValue);
+    for (const auto& p : _blockHeaderPtr->parentInfo())
+    {
+        Json::Value jp;
+        jp["blockNumber"] = p.blockNumber;
+        jp["blockHash"] = toHexStringWithPrefix(p.blockHash);
+        jParentInfo.append(jp);
+    }
+    jResp["parentInfo"] = jParentInfo;
+
+    Json::Value jSignList(Json::arrayValue);
+    for (const auto& sign : _blockHeaderPtr->signatureList())
+    {
+        Json::Value jSign;
+        jSign["sealerIndex"] = sign.index;
+        jSign["signature"] = toHexStringWithPrefix(sign.signature);
+        jSignList.append(jSign);
+    }
+    jResp["signatureList"] = jSignList;
+}
+
+void JsonRpcImpl_2_0::toJsonResp(
+    Json::Value& jResp, bcos::protocol::Block::Ptr _blockPtr, bool _onlyTxHash)
+{
+    if (!_blockPtr)
+    {
+        return;
+    }
+
+    // header
+    toJsonResp(jResp, _blockPtr->blockHeader());
+    auto txSize = _blockPtr->transactionsSize();
+
+    Json::Value jTxs(Json::arrayValue);
+    for (std::size_t index = 0; index < txSize; ++index)
+    {
+        Json::Value jTx;
+        if (_onlyTxHash)
+        {
+            jTx = toHexStringWithPrefix(_blockPtr->transactionHash(index));
+        }
+        else
+        {
+            toJsonResp(jTx, _blockPtr->transaction(index));
+        }
+        jTxs.append(jTx);
+    }
+
+    jResp["transactions"] = jTxs;
+}
+
 void JsonRpcImpl_2_0::call(const std::string& _to, const std::string& _data, RespFunc _respFunc)
 {
     RPC_IMPL_LOG(INFO) << LOG_DESC("call") << LOG_KV("to", _to) << LOG_KV("data", _data);
@@ -345,7 +486,7 @@ void JsonRpcImpl_2_0::call(const std::string& _to, const std::string& _data, Res
             {
                 jResp["blockNumber"] = _transactionReceiptPtr->blockNumber();
                 jResp["status"] = _transactionReceiptPtr->status();
-                jResp["output"] = *toHexString(_transactionReceiptPtr->output());
+                jResp["output"] = toHexStringWithPrefix(_transactionReceiptPtr->output());
             }
             else
             {
@@ -398,56 +539,6 @@ void JsonRpcImpl_2_0::sendTransaction(
         });
 }
 
-void JsonRpcImpl_2_0::toJsonResp(
-    Json::Value& jResp, bcos::protocol::Transaction::Ptr _transactionPtr)
-{
-    // transaction version
-    jResp["version"] = _transactionPtr->version();
-    // transaction hash
-    jResp["hash"] = *toHexString(_transactionPtr->hash());
-    // transaction nonce
-    jResp["nonce"] = _transactionPtr->nonce().str(16);
-    // blockLimit
-    jResp["blockLimit"] = _transactionPtr->blockLimit();
-    // the receiver address
-    jResp["to"] = *toHexString(_transactionPtr->to());
-    // the sender address
-    jResp["from"] = *toHexString(_transactionPtr->sender());
-    // the input data
-    jResp["input"] = encodeData(_transactionPtr->input());
-    // the chainId
-    jResp["chainId"] = std::string(_transactionPtr->chainId());
-    // the groupId
-    jResp["groupId"] = std::string(_transactionPtr->groupId());
-    // the signature
-    jResp["signature"] = *toHexString(_transactionPtr->signatureData());
-}
-
-void JsonRpcImpl_2_0::toJsonResp(
-    Json::Value& jResp, bcos::protocol::TransactionReceipt::ConstPtr _transactionReceiptPtr)
-{
-    jResp["version"] = _transactionReceiptPtr->version();
-    jResp["contractAddress"] = *toHexString(_transactionReceiptPtr->contractAddress());
-    jResp["logsBloom"] = *toHexString(_transactionReceiptPtr->bloom());
-    jResp["status"] = _transactionReceiptPtr->status();
-    jResp["blockNumber"] = _transactionReceiptPtr->blockNumber();
-    jResp["output"] = encodeData(_transactionReceiptPtr->output());
-    jResp["transactionHash"] = _transactionReceiptPtr->hash().hexPrefixed();
-    jResp["logs"] = Json::Value(Json::arrayValue);
-    for (const auto& logEntry : _transactionReceiptPtr->logEntries())
-    {
-        Json::Value jLog;
-        jLog["address"] = *toHexString(logEntry.address());
-        jLog["topics"] = Json::Value(Json::arrayValue);
-        for (const auto& topic : logEntry.topics())
-        {
-            jLog["topics"].append(topic.hexPrefixed());
-        }
-        jLog["data"] = encodeData(logEntry.data());
-
-        jResp["logs"].append(jLog);
-    }
-}
 
 void JsonRpcImpl_2_0::addProofToResponse(
     Json::Value& jResp, std::string const& _key, ledger::MerkleProofPtr _merkleProofPtr)
@@ -553,14 +644,14 @@ void JsonRpcImpl_2_0::getTransactionReceipt(
 }
 
 void JsonRpcImpl_2_0::getBlockByHash(
-    const std::string& _blockHash, bool _onlyHeader, RespFunc _respFunc)
+    const std::string& _blockHash, bool _onlyHeader, bool _onlyTxHash, RespFunc _respFunc)
 {
     RPC_IMPL_LOG(INFO) << LOG_DESC("getBlockByHash") << LOG_KV("blockHash", _blockHash)
-                       << LOG_KV("onlyHeader", _onlyHeader);
+                       << LOG_KV("onlyHeader", _onlyHeader) << LOG_KV("onlyTxHash", _onlyTxHash);
 
     auto self = std::weak_ptr<JsonRpcImpl_2_0>(shared_from_this());
     m_ledgerInterface->asyncGetBlockNumberByHash(bcos::crypto::HashType(_blockHash),
-        [_blockHash, _onlyHeader, _respFunc, self](
+        [_blockHash, _onlyHeader, _onlyTxHash, _respFunc, self](
             Error::Ptr _error, protocol::BlockNumber blockNumber) {
             if (!_error || _error->errorCode() == bcos::protocol::CommonError::SUCCESS)
             {
@@ -568,14 +659,14 @@ void JsonRpcImpl_2_0::getBlockByHash(
                 if (rpc)
                 {
                     // call getBlockByNumber
-                    return rpc->getBlockByNumber(blockNumber, _onlyHeader, _respFunc);
+                    return rpc->getBlockByNumber(blockNumber, _onlyHeader, _onlyTxHash, _respFunc);
                 }
             }
             else
             {
                 RPC_IMPL_LOG(ERROR)
                     << LOG_BADGE("getBlockByHash") << LOG_KV("blockHash", _blockHash)
-                    << LOG_KV("onlyHeader", _onlyHeader)
+                    << LOG_KV("onlyHeader", _onlyHeader) << LOG_KV("onlyTxHash", _onlyTxHash)
                     << LOG_KV("errorCode", _error ? 0 : _error->errorCode())
                     << LOG_KV("errorMessage", _error ? 0 : _error->errorMessage());
                 Json::Value jResp;
@@ -584,27 +675,37 @@ void JsonRpcImpl_2_0::getBlockByHash(
         });
 }
 
-void JsonRpcImpl_2_0::getBlockByNumber(int64_t _blockNumber, bool _onlyHeader, RespFunc _respFunc)
+void JsonRpcImpl_2_0::getBlockByNumber(
+    int64_t _blockNumber, bool _onlyHeader, bool _onlyTxHash, RespFunc _respFunc)
 {
     RPC_IMPL_LOG(INFO) << LOG_DESC("getBlockByNumber") << LOG_KV("_blockNumber", _blockNumber)
-                       << LOG_KV("_onlyHeader", _onlyHeader);
+                       << LOG_KV("_onlyHeader", _onlyHeader) << LOG_KV("onlyTxHash", _onlyTxHash);
 
     m_ledgerInterface->asyncGetBlockDataByNumber(_blockNumber,
-        _onlyHeader ? bcos::ledger::HEADER : bcos::ledger::FULL_BLOCK,
-        [_blockNumber, _onlyHeader, _respFunc](Error::Ptr _error, protocol::Block::Ptr _block) {
+        _onlyHeader ? bcos::ledger::HEADER : bcos::ledger::HEADER | bcos::ledger::TRANSACTIONS,
+        [_blockNumber, _onlyHeader, _onlyTxHash, _respFunc](
+            Error::Ptr _error, protocol::Block::Ptr _block) {
+            Json::Value jResp;
             if (_error && _error->errorCode() != bcos::protocol::CommonError::SUCCESS)
             {
                 RPC_IMPL_LOG(ERROR)
                     << LOG_BADGE("getBlockByNumber") << LOG_KV("blockNumber", _blockNumber)
-                    << LOG_KV("onlyHeader", _onlyHeader)
+                    << LOG_KV("onlyHeader", _onlyHeader) << LOG_KV("onlyTxHash", _onlyTxHash)
                     << LOG_KV("errorCode", _error ? 0 : _error->errorCode())
                     << LOG_KV("errorMessage", _error ? 0 : _error->errorMessage());
-                Json::Value jResp;
-                _respFunc(_error, jResp);
             }
-
-            // TODO: impl getBlockByNumber
-            (void)_block;
+            else
+            {
+                if (_onlyHeader)
+                {
+                    toJsonResp(jResp, _block->blockHeader());
+                }
+                else
+                {
+                    toJsonResp(jResp, _block, _onlyTxHash);
+                }
+            }
+            _respFunc(_error, jResp);
         });
 }
 
@@ -851,7 +952,15 @@ void JsonRpcImpl_2_0::getPeers(RespFunc _respFunc)
 void JsonRpcImpl_2_0::getNodeInfo(RespFunc _respFunc)
 {
     Json::Value jResp;
-    // TODO:
-    jResp["Version"] = "3.0.0";
+
+    jResp["version"] = m_nodeInfo.version;
+    jResp["nodeID"] = m_nodeInfo.nodeID;
+    jResp["chainID"] = m_nodeInfo.chainID;
+    jResp["groupID"] = m_nodeInfo.groupID;
+    jResp["agency"] = m_nodeInfo.agency;
+    jResp["buildTime"] = m_nodeInfo.buildTime;
+    jResp["gitCommit"] = m_nodeInfo.gitCommitHash;
+    jResp["supportedVersion"] = m_nodeInfo.supportedVersion;
+
     _respFunc(nullptr, jResp);
 }
