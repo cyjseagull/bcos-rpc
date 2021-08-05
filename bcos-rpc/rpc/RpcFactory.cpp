@@ -19,13 +19,22 @@
  * @date 2021-07-15
  */
 
+#include "bcos-rpc/amop/TopicManager.h"
+#include "bcos-rpc/http/ws/Common.h"
+#include "libutilities/Log.h"
+#include "libutilities/ThreadPool.h"
 #include <bcos-framework/libutilities/Exceptions.h>
 #include <bcos-framework/libutilities/FileUtility.h>
+#include <bcos-rpc/http/HttpServer.h>
+#include <bcos-rpc/http/ws/WsMessage.h>
+#include <bcos-rpc/http/ws/WsSession.h>
 #include <bcos-rpc/rpc/RpcFactory.h>
-#include <bcos-rpc/rpc/http/HttpServer.h>
 #include <bcos-rpc/rpc/jsonrpc/JsonRpcImpl_2_0.h>
+#include <boost/core/ignore_unused.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <memory>
+#include <utility>
 
 using namespace bcos;
 using namespace bcos::rpc;
@@ -59,13 +68,13 @@ void RpcConfig::initConfig(const std::string& _configPath)
         m_listenPort = listenPort;
         m_threadCount = threadCount;
 
-        RPC_FACTORY(INFO) << LOG_DESC("initConfig") << LOG_KV("listenIP", listenIP)
+        RPC_FACTORY(INFO) << LOG_BADGE("initConfig") << LOG_KV("listenIP", listenIP)
                           << LOG_KV("listenPort", listenPort) << LOG_KV("threadCount", threadCount);
     }
     catch (const std::exception& e)
     {
         boost::filesystem::path full_path(boost::filesystem::current_path());
-        RPC_FACTORY(ERROR) << LOG_DESC("initConfig") << LOG_KV("configPath", _configPath)
+        RPC_FACTORY(ERROR) << LOG_BADGE("initConfig") << LOG_KV("configPath", _configPath)
                            << LOG_KV("currentPath", full_path.string())
                            << LOG_KV("error: ", boost::diagnostic_information(e));
         BOOST_THROW_EXCEPTION(
@@ -76,6 +85,13 @@ void RpcConfig::initConfig(const std::string& _configPath)
 
 void RpcFactory::checkParams()
 {
+    if (!m_frontServiceInterface)
+    {
+        BOOST_THROW_EXCEPTION(
+            InvalidParameter() << errinfo_comment(
+                "RpcFactory::checkParams frontServiceInterface is uninitialized"));
+    }
+
     if (!m_ledgerInterface)
     {
         BOOST_THROW_EXCEPTION(InvalidParameter() << errinfo_comment(
@@ -114,6 +130,31 @@ void RpcFactory::checkParams()
     return;
 }
 
+bcos::amop::AMOP::Ptr RpcFactory::buildAMOP()
+{
+    auto amop = std::make_shared<bcos::amop::AMOP>();
+    auto messageFactory = std::make_shared<bcos::amop::MessageFactory>();
+    amop->setFrontServiceInterface(m_frontServiceInterface);
+    amop->setKeyFactory(m_keyFactory);
+    amop->setMessageFactory(messageFactory);
+    return amop;
+}
+
+JsonRpcInterface::Ptr RpcFactory::buildJsonRpc(const NodeInfo& _nodeInfo)
+{
+    // JsonRpcImpl_2_0
+    auto jsonRpcInterface = std::make_shared<bcos::rpc::JsonRpcImpl_2_0>();
+    jsonRpcInterface->setNodeInfo(_nodeInfo);
+    jsonRpcInterface->setLedger(m_ledgerInterface);
+    jsonRpcInterface->setTxPoolInterface(m_txPoolInterface);
+    jsonRpcInterface->setExecutorInterface(m_executorInterface);
+    jsonRpcInterface->setConsensusInterface(m_consensusInterface);
+    jsonRpcInterface->setBlockSyncInterface(m_blockSyncInterface);
+    jsonRpcInterface->setTransactionFactory(m_transactionFactory);
+    jsonRpcInterface->setGatewayInterface(m_gatewayInterface);
+    return jsonRpcInterface;
+}
+
 /**
  * @brief: Rpc
  * @param _configPath: rpc config path
@@ -137,27 +178,92 @@ Rpc::Ptr RpcFactory::buildRpc(const RpcConfig& _rpcConfig, const NodeInfo& _node
     uint16_t _listenPort = _rpcConfig.m_listenPort;
     std::size_t _threadCount = _rpcConfig.m_threadCount;
 
-    checkParams();
+    // checkParams();
 
-    auto rpc = std::make_shared<Rpc>();
-    auto jsonRpcInterface = std::make_shared<bcos::rpc::JsonRpcImpl_2_0>();
+    // io_context
+    auto ioc = std::make_shared<boost::asio::io_context>();
+    auto threads = std::make_shared<std::vector<std::thread>>();
 
-    jsonRpcInterface->setNodeInfo(_nodeInfo);
-    jsonRpcInterface->setLedger(m_ledgerInterface);
-    jsonRpcInterface->setTxPoolInterface(m_txPoolInterface);
-    jsonRpcInterface->setExecutorInterface(m_executorInterface);
-    jsonRpcInterface->setConsensusInterface(m_consensusInterface);
-    jsonRpcInterface->setBlockSyncInterface(m_blockSyncInterface);
-    jsonRpcInterface->setTransactionFactory(m_transactionFactory);
-    jsonRpcInterface->setGatewayInterface(m_gatewayInterface);
+    // JsonRpcImpl_2_0
+    auto jsonRpcInterface = buildJsonRpc(_nodeInfo);
 
+    // HttpServer
     auto httpServerFactory = std::make_shared<bcos::http::HttpServerFactory>();
-    auto httpServer = httpServerFactory->buildHttpServer(_listenIP, _listenPort, _threadCount);
-    httpServer->setRequestHandler(std::bind(&bcos::rpc::JsonRpcImpl_2_0::onRPCRequest,
+    auto httpServer = httpServerFactory->buildHttpServer(_listenIP, _listenPort, ioc);
+    httpServer->setRequestHandler(std::bind(&bcos::rpc::JsonRpcInterface::onRPCRequest,
         jsonRpcInterface, std::placeholders::_1, std::placeholders::_2));
 
+    auto topicManager = std::make_shared<amop::TopicManager>();
+    auto wsMessageFactory = std::make_shared<ws::WsMessageFactory>();
+    auto requestFactory = std::make_shared<ws::AMOPRequestFactory>();
+
+    auto threadPool = std::make_shared<bcos::ThreadPool>("ws-service", _threadCount);
+    // WsService
+    auto wsService = std::make_shared<ws::WsService>();
+    auto weakWsService = std::weak_ptr<ws::WsService>(wsService);
+    wsService->setJsonRpcInterface(jsonRpcInterface);
+    wsService->setTopicManager(topicManager);
+    wsService->setIoc(ioc);
+    wsService->setMessageFactory(wsMessageFactory);
+    wsService->setRequestFactory(requestFactory);
+    wsService->setThreadPool(threadPool);
+
+    httpServer->setWsUpgradeHandler(
+        [threadPool, wsMessageFactory, weakWsService](
+            boost::asio::ip::tcp::socket&& _socket, HttpRequest&& _httpRequest) {
+            auto session = std::make_shared<ws::WsSession>(std::move(_socket));
+            session->setThreadPool(threadPool);
+            session->setMessageFactory(wsMessageFactory);
+            session->setAcceptHandler(
+                [weakWsService](bcos::Error::Ptr _error, std::shared_ptr<ws::WsSession> _session) {
+                    boost::ignore_unused(_error);
+                    auto service = weakWsService.lock();
+                    if (service)
+                    {
+                        service->addSession(_session);
+                    }
+                });
+            session->setDisconnectHandler(
+                [weakWsService](bcos::Error::Ptr _error, std::shared_ptr<ws::WsSession> _session) {
+                    auto service = weakWsService.lock();
+                    if (service)
+                    {
+                        service->onDisconnect(_error, _session);
+                    }
+                });
+            session->setRecvMessageHandler(
+                [weakWsService](bcos::Error::Ptr _error, std::shared_ptr<ws::WsMessage> _msg,
+                    std::shared_ptr<ws::WsSession> _session) {
+                    auto service = weakWsService.lock();
+                    if (service)
+                    {
+                        service->onRecvClientMessage(_error, _msg, _session);
+                    }
+                });
+
+            // start websocket handshake
+            session->doAccept(std::move(_httpRequest));
+        });
+    wsService->initMethod();
+
+    // AMOP
+    auto amop = buildAMOP();
+    amop->setTopicManager(topicManager);
+    amop->setIoService(ioc);
+
+    // rpc
+    auto rpc = std::make_shared<Rpc>();
     rpc->setHttpServer(httpServer);
-    RPC_FACTORY(INFO) << LOG_DESC("buildRpc") << LOG_KV("listenIP", _listenIP)
+    rpc->setWsService(wsService);
+    rpc->setAMOP(amop);
+    rpc->setIoc(ioc);
+    rpc->setThreadC(_threadCount);
+    rpc->setThreads(threads);
+
+    amop->setWsService(std::weak_ptr<ws::WsService>(wsService));
+    wsService->setAMOP(std::weak_ptr<amop::AMOP>(amop));
+
+    RPC_FACTORY(INFO) << LOG_BADGE("buildRpc") << LOG_KV("listenIP", _listenIP)
                       << LOG_KV("listenPort", _listenPort) << LOG_KV("threadCount", _threadCount);
     return rpc;
 }
