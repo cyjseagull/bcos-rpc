@@ -28,9 +28,11 @@
 #include <bcos-framework/interfaces/ledger/LedgerInterface.h>
 #include <bcos-framework/interfaces/sync/BlockSyncInterface.h>
 #include <bcos-framework/interfaces/txpool/TxPoolInterface.h>
+#include <bcos-rpc/Rpc.h>
 #include <bcos-rpc/amop/AMOP.h>
-#include <bcos-rpc/rpc/Rpc.h>
-#include <bcos-rpc/rpc/jsonrpc/JsonRpcImpl_2_0.h>
+#include <bcos-rpc/jsonrpc/JsonRpcImpl_2_0.h>
+#include <bcos-rpc/http/ws/WsService.h>
+#include <bcos-rpc/http/ws/WsSession.h>
 
 namespace bcos
 {
@@ -54,6 +56,8 @@ public:
 public:
     bcos::amop::AMOP::Ptr buildAMOP();
     JsonRpcInterface::Ptr buildJsonRpc(const NodeInfo& _nodeInfo);
+    ws::WsSession::Ptr buildWsSession(boost::asio::ip::tcp::socket&& _socket, std::weak_ptr<ws::WsService> _wsService);
+
     /**
      * @brief: Rpc
      * @param _rpcConfig: rpc config

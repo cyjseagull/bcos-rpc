@@ -346,11 +346,19 @@ void WsService::onRecvSubTopics(
 void WsService::onRecvAMOPRequest(
     std::shared_ptr<WsMessage> _msg, std::shared_ptr<WsSession> _session)
 {
-    // TODO: handler error
     auto factory = std::make_shared<AMOPRequestFactory>();
     auto request = factory->buildRequest();
-    request->decode(bytesConstRef(_msg->data()->data(), _msg->data()->size()));
-
+    auto size = request->decode(bytesConstRef(_msg->data()->data(), _msg->data()->size()));
+    if (size < 0)
+    {
+        WEBSOCKET_SERVICE(ERROR) << LOG_BADGE("onRecvAMOPRequest")
+                                 << LOG_DESC("decode amop request message failed")
+                                 << LOG_KV("endpoint",
+                                        _session ? _session->remoteEndPoint() : std::string(""))
+                                 << LOG_KV("data",
+                                        *toHexString(_msg->data()->begin(), _msg->data()->end()));
+        return;
+    }
     auto buffer = std::make_shared<bcos::bytes>();
     _msg->encode(*buffer);
     auto topic = request->topic();
@@ -401,7 +409,17 @@ void WsService::onRecvAMOPBroadcast(
     boost::ignore_unused(_session);
 
     auto request = m_requestFactory->buildRequest();
-    request->decode(bytesConstRef(_msg->data()->data(), _msg->data()->size()));
+    auto size = request->decode(bytesConstRef(_msg->data()->data(), _msg->data()->size()));
+    if (size < 0)
+    {
+        WEBSOCKET_SERVICE(ERROR) << LOG_BADGE("onRecvAMOPBroadcast")
+                                 << LOG_DESC("decode amop broadcast message failed")
+                                 << LOG_KV("endpoint",
+                                        _session ? _session->remoteEndPoint() : std::string(""))
+                                 << LOG_KV("data",
+                                        *toHexString(_msg->data()->begin(), _msg->data()->end()));
+        return;
+    }
 
     auto topic = request->topic();
     WEBSOCKET_SERVICE(DEBUG) << LOG_BADGE("onRecvAMOPBroadcast") << LOG_KV("seq", _msg->seq())
@@ -422,11 +440,25 @@ void WsService::onRecvAMOPMessage(bytesConstRef _data, const std::string& nodeID
 {
     // WsMessage
     auto message = m_messageFactory->buildMessage();
-    message->decode(_data.data(), _data.size());
+    auto size = message->decode(_data.data(), _data.size());
+    if (size < 0)
+    {
+        WEBSOCKET_SERVICE(ERROR) << LOG_BADGE("onRecvAMOPMessage")
+                                 << LOG_DESC("decode message failed") << LOG_KV("nodeID", nodeID)
+                                 << LOG_KV("data", *toHexString(_data));
+        return;
+    }
 
     // AMOPRequest
     auto request = m_requestFactory->buildRequest();
-    request->decode(bytesConstRef(message->data()->data(), message->data()->size()));
+    size = request->decode(bytesConstRef(message->data()->data(), message->data()->size()));
+    if (size < 0)
+    {
+        WEBSOCKET_SERVICE(ERROR) << LOG_BADGE("onRecvAMOPMessage")
+                                 << LOG_DESC("decode amop message failed")
+                                 << LOG_KV("nodeID", nodeID) << LOG_KV("data", *toHexString(_data));
+        return;
+    }
 
     // message seq
     std::string topic = request->topic();
@@ -437,13 +469,13 @@ void WsService::onRecvAMOPMessage(bytesConstRef _data, const std::string& nodeID
     if (clients.empty())
     {
         auto buffer = std::make_shared<bcos::bytes>();
-        // TODO: set the error code
-        message->setStauts(bcos::protocol::CommonError::TIMEOUT);
+        message->setStauts(bcos::protocol::CommonError::NotFoundClientByTopicDispatchMsg);
         message->data()->clear();
         message->setType(WsMessageType::AMOP_RESPONSE);
         message->encode(*buffer);
 
-        _callback(bytesConstRef(buffer->data(), buffer->size()));
+        m_threadPool->enqueue(
+            [buffer, _callback]() { _callback(bytesConstRef(buffer->data(), buffer->size())); });
 
         WEBSOCKET_SERVICE(WARNING)
             << LOG_BADGE("onRecvAMOPMessage") << LOG_DESC("no client subscribe the topic")
@@ -459,7 +491,7 @@ void WsService::onRecvAMOPMessage(bytesConstRef _data, const std::string& nodeID
         std::shared_ptr<WsMessage> m_message;
         std::vector<std::string> m_clients;
         std::shared_ptr<WsService> m_wsService;
-        std::function<void(bytesConstRef _data)> m_callback;
+        std::function<void(std::shared_ptr<bcos::bytes> _data)> m_callback;
 
     public:
         WsSession::Ptr chooseSession()
@@ -501,7 +533,7 @@ void WsService::onRecvAMOPMessage(bytesConstRef _data, const std::string& nodeID
                 m_message->setType(WsMessageType::AMOP_RESPONSE);
                 m_message->encode(*buffer);
 
-                m_callback(bytesConstRef(buffer->data(), buffer->size()));
+                m_callback(buffer);
                 return;
             }
 
@@ -524,13 +556,15 @@ void WsService::onRecvAMOPMessage(bytesConstRef _data, const std::string& nodeID
                             << LOG_DESC("asyncSendMessage callback error and try to send again")
                             << LOG_KV("endpoint",
                                    (_session ? _session->remoteEndPoint() : std::string("")))
-                            << LOG_KV("topic", retry->m_topic) << LOG_KV("nodeID", retry->m_nodeID);
+                            << LOG_KV("topic", retry->m_topic) << LOG_KV("nodeID", retry->m_nodeID)
+                            << LOG_KV("errorCode", _error ? _error->errorCode() : -1)
+                            << LOG_KV("errorMessage", _error ? _error->errorMessage() : "success");
                         return retry->sendMessage();
                     }
 
                     auto buffer = std::make_shared<bcos::bytes>();
                     _msg->encode(*buffer);
-                    retry->m_callback(bytesConstRef(buffer->data(), buffer->size()));
+                    retry->m_callback(buffer);
                 });
         }
     };
@@ -541,7 +575,9 @@ void WsService::onRecvAMOPMessage(bytesConstRef _data, const std::string& nodeID
     retry->m_clients = clients;
     retry->m_message = message;
     retry->m_wsService = shared_from_this();
-    retry->m_callback = _callback;
+    retry->m_callback = [_callback](std::shared_ptr<bcos::bytes> _data) {
+        _callback(bytesConstRef(_data->data(), _data->size()));
+    };
     retry->sendMessage();
 }
 
@@ -549,11 +585,25 @@ void WsService::onRecvAMOPBroadcastMessage(bytesConstRef _data)
 {
     // WsMessage
     auto message = m_messageFactory->buildMessage();
-    message->decode(_data.data(), _data.size());
+    auto size = message->decode(_data.data(), _data.size());
+    if (size < 0)
+    {
+        WEBSOCKET_SERVICE(ERROR) << LOG_BADGE("onRecvAMOPBroadcastMessage")
+                                 << LOG_DESC("decode message failed")
+                                 << LOG_KV("data", *toHexString(_data));
+        return;
+    }
 
     // AMOPRequest
     auto request = m_requestFactory->buildRequest();
-    request->decode(bytesConstRef(message->data()->data(), message->data()->size()));
+    size = request->decode(bytesConstRef(message->data()->data(), message->data()->size()));
+    if (size < 0)
+    {
+        WEBSOCKET_SERVICE(ERROR) << LOG_BADGE("onRecvAMOPBroadcastMessage")
+                                 << LOG_DESC("decode amop message failed")
+                                 << LOG_KV("data", *toHexString(_data));
+        return;
+    }
 
     // message seq
     std::string topic = request->topic();
@@ -563,9 +613,9 @@ void WsService::onRecvAMOPBroadcastMessage(bytesConstRef _data)
     m_topicManager->queryClientsByTopic(topic, clients);
     if (clients.empty())
     {
-        WEBSOCKET_SERVICE(INFO) << LOG_BADGE("onRecvAMOPBroadcastMessage")
-                                << LOG_DESC("no client subscribe the topic") << LOG_KV("seq", seq)
-                                << LOG_KV("topic", topic);
+        WEBSOCKET_SERVICE(WARNING)
+            << LOG_BADGE("onRecvAMOPBroadcastMessage") << LOG_DESC("no client subscribe the topic")
+            << LOG_KV("seq", seq) << LOG_KV("topic", topic);
         return;
     }
 
@@ -615,7 +665,7 @@ void WsService::notifyBlockNumberToClient(bcos::protocol::BlockNumber _blockNumb
     auto allSessions = sessions();
     for (const auto& session : allSessions)
     {
-        if (session->isConnected())
+        if (session && session->isConnected())
         {
             notifyBlockNumberToClient(session, _blockNumber);
         }
