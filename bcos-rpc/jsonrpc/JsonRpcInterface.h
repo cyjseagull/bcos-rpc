@@ -44,48 +44,56 @@ public:
     virtual void onRPCRequest(const std::string& _requestBody, Sender _sender) = 0;
 
 public:
-    virtual void call(std::string const& _groupID, const std::string& _to, const std::string& _data,
-        RespFunc _respFunc) = 0;
+    virtual void call(std::string const& _groupID, std::string const& _nodeName,
+        const std::string& _to, const std::string& _data, RespFunc _respFunc) = 0;
 
-    virtual void sendTransaction(std::string const& _groupID, const std::string& _data,
-        bool _requireProof, RespFunc _respFunc) = 0;
+    virtual void sendTransaction(std::string const& _groupID, std::string const& _nodeName,
+        const std::string& _data, bool _requireProof, RespFunc _respFunc) = 0;
 
-    virtual void getTransaction(std::string const& _groupID, const std::string& _txHash,
-        bool _requireProof, RespFunc _respFunc) = 0;
+    virtual void getTransaction(std::string const& _groupID, std::string const& _nodeName,
+        const std::string& _txHash, bool _requireProof, RespFunc _respFunc) = 0;
 
-    virtual void getTransactionReceipt(std::string const& _groupID, const std::string& _txHash,
-        bool _requireProof, RespFunc _respFunc) = 0;
+    virtual void getTransactionReceipt(std::string const& _groupID, std::string const& _nodeName,
+        const std::string& _txHash, bool _requireProof, RespFunc _respFunc) = 0;
 
-    virtual void getBlockByHash(std::string const& _groupID, const std::string& _blockHash,
-        bool _onlyHeader, bool _onlyTxHash, RespFunc _respFunc) = 0;
+    virtual void getBlockByHash(std::string const& _groupID, std::string const& _nodeName,
+        const std::string& _blockHash, bool _onlyHeader, bool _onlyTxHash, RespFunc _respFunc) = 0;
 
-    virtual void getBlockByNumber(std::string const& _groupID, int64_t _blockNumber,
-        bool _onlyHeader, bool _onlyTxHash, RespFunc _respFunc) = 0;
+    virtual void getBlockByNumber(std::string const& _groupID, std::string const& _nodeName,
+        int64_t _blockNumber, bool _onlyHeader, bool _onlyTxHash, RespFunc _respFunc) = 0;
 
-    virtual void getBlockHashByNumber(
-        std::string const& _groupID, int64_t _blockNumber, RespFunc _respFunc) = 0;
+    virtual void getBlockHashByNumber(std::string const& _groupID, std::string const& _nodeName,
+        int64_t _blockNumber, RespFunc _respFunc) = 0;
 
-    virtual void getBlockNumber(std::string const& _groupID, RespFunc _respFunc) = 0;
+    virtual void getBlockNumber(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) = 0;
 
-    virtual void getCode(
-        std::string const& _groupID, const std::string _contractAddress, RespFunc _respFunc) = 0;
+    virtual void getCode(std::string const& _groupID, std::string const& _nodeName,
+        const std::string _contractAddress, RespFunc _respFunc) = 0;
 
-    virtual void getSealerList(std::string const& _groupID, RespFunc _respFunc) = 0;
+    virtual void getSealerList(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) = 0;
 
-    virtual void getObserverList(std::string const& _groupID, RespFunc _respFunc) = 0;
+    virtual void getObserverList(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) = 0;
 
-    virtual void getPbftView(std::string const& _groupID, RespFunc _respFunc) = 0;
+    virtual void getPbftView(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) = 0;
 
-    virtual void getPendingTxSize(std::string const& _groupID, RespFunc _respFunc) = 0;
+    virtual void getPendingTxSize(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) = 0;
 
-    virtual void getSyncStatus(std::string const& _groupID, RespFunc _respFunc) = 0;
+    virtual void getSyncStatus(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) = 0;
     // TODO: implement getConsensusStatus in pbft and rpc
-    virtual void getConsensusStatus(std::string const& _groupID, RespFunc _respFunc) = 0;
+    virtual void getConsensusStatus(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) = 0;
 
-    virtual void getSystemConfigByKey(
-        std::string const& _groupID, const std::string& _keyValue, RespFunc _respFunc) = 0;
+    virtual void getSystemConfigByKey(std::string const& _groupID, std::string const& _nodeName,
+        const std::string& _keyValue, RespFunc _respFunc) = 0;
 
-    virtual void getTotalTransactionCount(std::string const& _groupID, RespFunc _respFunc) = 0;
+    virtual void getTotalTransactionCount(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) = 0;
 
     virtual void getPeers(RespFunc _respFunc) = 0;
 
