@@ -73,6 +73,8 @@ void JsonRpcImpl_2_0::initMethod()
         &JsonRpcImpl_2_0::getPendingTxSizeI, this, std::placeholders::_1, std::placeholders::_2);
     m_methodToFunc["getSyncStatus"] = std::bind(
         &JsonRpcImpl_2_0::getSyncStatusI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["getConsensusStatus"] = std::bind(
+        &JsonRpcImpl_2_0::getConsensusStatusI, this, std::placeholders::_1, std::placeholders::_2);
     m_methodToFunc["getSystemConfigByKey"] = std::bind(&JsonRpcImpl_2_0::getSystemConfigByKeyI,
         this, std::placeholders::_1, std::placeholders::_2);
     m_methodToFunc["getTotalTransactionCount"] =

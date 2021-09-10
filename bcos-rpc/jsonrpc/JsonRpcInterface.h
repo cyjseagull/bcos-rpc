@@ -79,6 +79,8 @@ public:
     virtual void getPendingTxSize(std::string const& _groupID, RespFunc _respFunc) = 0;
 
     virtual void getSyncStatus(std::string const& _groupID, RespFunc _respFunc) = 0;
+    // TODO: implement getConsensusStatus in pbft and rpc
+    virtual void getConsensusStatus(std::string const& _groupID, RespFunc _respFunc) = 0;
 
     virtual void getSystemConfigByKey(
         std::string const& _groupID, const std::string& _keyValue, RespFunc _respFunc) = 0;

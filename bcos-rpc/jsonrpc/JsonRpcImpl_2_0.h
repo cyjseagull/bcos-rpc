@@ -104,6 +104,13 @@ public:
 
     void getSyncStatus(std::string const& _groupID, RespFunc _respFunc) override;
 
+    // TODO: implement getConsensusStatus
+    void getConsensusStatus(std::string const& _groupID, RespFunc _respFunc) override
+    {
+        (void)_groupID;
+        (void)_respFunc;
+    }
+
     void getSystemConfigByKey(
         std::string const& _groupID, const std::string& _keyValue, RespFunc _respFunc) override;
 
@@ -272,6 +279,12 @@ public:
     {
         boost::ignore_unused(req);
         getSyncStatus(req[0u].asString(), _respFunc);
+    }
+
+    void getConsensusStatusI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        (void)_req;
+        getConsensusStatus(_req[0u].asString(), _respFunc);
     }
 
     void getSystemConfigByKeyI(const Json::Value& req, RespFunc _respFunc)
