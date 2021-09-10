@@ -274,6 +274,10 @@ void WsService::onRecvClientMessage(
 void WsService::onRecvHandshake(
     std::shared_ptr<WsMessage> _msg, std::shared_ptr<WsSession> _session)
 {
+    (void)_msg;
+    (void)_session;
+// TODO: Re-define and implement handshake in the group dimension
+#if 0
     // getNodeInfo
     m_jsonRpcInterface->getNodeInfo([_msg, _session, this](
                                         bcos::Error::Ptr _error, Json::Value& _jNodeInfo) {
@@ -301,6 +305,7 @@ void WsService::onRecvHandshake(
             _session->asyncSendMessage(_msg);
         });
     });
+#endif
 }
 
 /**

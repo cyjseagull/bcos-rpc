@@ -65,139 +65,145 @@ public:
     static void addProofToResponse(
         Json::Value& jResp, std::string const& _key, ledger::MerkleProofPtr _merkleProofPtr);
 
-    virtual void onRPCRequest(const std::string& _requestBody, Sender _sender) override;
+    void onRPCRequest(const std::string& _requestBody, Sender _sender) override;
 
 public:
-    virtual void call(
-        const std::string& _to, const std::string& _data, RespFunc _respFunc) override;
-
-    virtual void sendTransaction(
-        const std::string& _data, bool _requireProof, RespFunc _respFunc) override;
-
-    virtual void getTransaction(
-        const std::string& _txHash, bool _requireProof, RespFunc _respFunc) override;
-
-    virtual void getTransactionReceipt(
-        const std::string& _txHash, bool _requireProof, RespFunc _respFunc) override;
-
-    virtual void getBlockByHash(const std::string& _blockHash, bool _onlyHeader, bool _onlyTxHash,
+    void call(std::string const& _groupID, const std::string& _to, const std::string& _data,
         RespFunc _respFunc) override;
 
-    virtual void getBlockByNumber(
-        int64_t _blockNumber, bool _onlyHeader, bool _onlyTxHash, RespFunc _respFunc) override;
+    void sendTransaction(std::string const& _groupID, const std::string& _data, bool _requireProof,
+        RespFunc _respFunc) override;
 
-    virtual void getBlockHashByNumber(int64_t _blockNumber, RespFunc _respFunc) override;
+    void getTransaction(std::string const& _groupID, const std::string& _txHash, bool _requireProof,
+        RespFunc _respFunc) override;
 
-    virtual void getBlockNumber(RespFunc _respFunc) override;
+    void getTransactionReceipt(std::string const& _groupID, const std::string& _txHash,
+        bool _requireProof, RespFunc _respFunc) override;
 
-    virtual void getCode(const std::string _contractAddress, RespFunc _respFunc) override;
+    void getBlockByHash(std::string const& _groupID, const std::string& _blockHash,
+        bool _onlyHeader, bool _onlyTxHash, RespFunc _respFunc) override;
 
-    virtual void getSealerList(RespFunc _respFunc) override;
+    void getBlockByNumber(std::string const& _groupID, int64_t _blockNumber, bool _onlyHeader,
+        bool _onlyTxHash, RespFunc _respFunc) override;
 
-    virtual void getObserverList(RespFunc _respFunc) override;
+    void getBlockHashByNumber(
+        std::string const& _groupID, int64_t _blockNumber, RespFunc _respFunc) override;
 
-    virtual void getPbftView(RespFunc _respFunc) override;
+    void getBlockNumber(std::string const& _groupID, RespFunc _respFunc) override;
 
-    virtual void getPendingTxSize(RespFunc _respFunc) override;
+    void getCode(std::string const& _groupID, const std::string _contractAddress,
+        RespFunc _respFunc) override;
 
-    virtual void getSyncStatus(RespFunc _respFunc) override;
+    void getSealerList(std::string const& _groupID, RespFunc _respFunc) override;
 
-    virtual void getSystemConfigByKey(const std::string& _keyValue, RespFunc _respFunc) override;
+    void getObserverList(std::string const& _groupID, RespFunc _respFunc) override;
 
-    virtual void getTotalTransactionCount(RespFunc _respFunc) override;
+    void getPbftView(std::string const& _groupID, RespFunc _respFunc) override;
 
-    virtual void getPeers(RespFunc _respFunc) override;
+    void getPendingTxSize(std::string const& _groupID, RespFunc _respFunc) override;
 
-    virtual void getNodeInfo(RespFunc _respFunc) override;
+    void getSyncStatus(std::string const& _groupID, RespFunc _respFunc) override;
+
+    void getSystemConfigByKey(
+        std::string const& _groupID, const std::string& _keyValue, RespFunc _respFunc) override;
+
+    void getTotalTransactionCount(std::string const& _groupID, RespFunc _respFunc) override;
+
+    void getPeers(RespFunc _respFunc) override;
+
+    // TODO: update this interface and add new interfaces to provide group list information
+    void getNodeInfo(RespFunc _respFunc) override;
 
 public:
     void callI(const Json::Value& req, RespFunc _respFunc)
     {
-        call(req[0u].asString(), req[1u].asString(), _respFunc);
+        call(req[0u].asString(), req[1u].asString(), req[2u].asString(), _respFunc);
     }
 
     void sendTransactionI(const Json::Value& req, RespFunc _respFunc)
     {
-        sendTransaction(req[0u].asString(), req[1u].asBool(), _respFunc);
+        sendTransaction(req[0u].asString(), req[1u].asString(), req[2u].asBool(), _respFunc);
     }
 
     void getTransactionI(const Json::Value& req, RespFunc _respFunc)
     {
-        getTransaction(req[0u].asString(), req[1u].asBool(), _respFunc);
+        getTransaction(req[0u].asString(), req[1u].asString(), req[2u].asBool(), _respFunc);
     }
 
     void getTransactionReceiptI(const Json::Value& req, RespFunc _respFunc)
     {
-        getTransactionReceipt(req[0u].asString(), req[1u].asBool(), _respFunc);
+        getTransactionReceipt(req[0u].asString(), req[1u].asString(), req[2u].asBool(), _respFunc);
     }
 
     void getBlockByHashI(const Json::Value& req, RespFunc _respFunc)
     {
-        getBlockByHash(req[0u].asString(), (req.size() > 1 ? req[1u].asBool() : true),
-            (req.size() > 2 ? req[2u].asBool() : true), _respFunc);
+        getBlockByHash(req[0u].asString(), req[1u].asString(),
+            (req.size() > 1 ? req[2u].asBool() : true), (req.size() > 2 ? req[3u].asBool() : true),
+            _respFunc);
     }
 
     void getBlockByNumberI(const Json::Value& req, RespFunc _respFunc)
     {
-        getBlockByNumber(req[0u].asInt64(), (req.size() > 1 ? req[1u].asBool() : true),
-            (req.size() > 2 ? req[2u].asBool() : true), _respFunc);
+        getBlockByNumber(req[0u].asString(), req[1u].asInt64(),
+            (req.size() > 1 ? req[2u].asBool() : true), (req.size() > 2 ? req[3u].asBool() : true),
+            _respFunc);
     }
 
     void getBlockHashByNumberI(const Json::Value& req, RespFunc _respFunc)
     {
-        getBlockHashByNumber(req[0u].asInt64(), _respFunc);
+        getBlockHashByNumber(req[0u].asString(), req[1u].asInt64(), _respFunc);
     }
 
     void getBlockNumberI(const Json::Value& req, RespFunc _respFunc)
     {
         boost::ignore_unused(req);
-        getBlockNumber(_respFunc);
+        getBlockNumber(req[0u].asString(), _respFunc);
     }
 
     void getCodeI(const Json::Value& req, RespFunc _respFunc)
     {
-        getCode(req[0u].asString(), _respFunc);
+        getCode(req[0u].asString(), req[1u].asString(), _respFunc);
     }
 
     void getSealerListI(const Json::Value& req, RespFunc _respFunc)
     {
         boost::ignore_unused(req);
-        getSealerList(_respFunc);
+        getSealerList(req[0u].asString(), _respFunc);
     }
 
     void getObserverListI(const Json::Value& req, RespFunc _respFunc)
     {
         boost::ignore_unused(req);
-        getObserverList(_respFunc);
+        getObserverList(req[0u].asString(), _respFunc);
     }
 
     void getPbftViewI(const Json::Value& req, RespFunc _respFunc)
     {
         boost::ignore_unused(req);
-        getPbftView(_respFunc);
+        getPbftView(req[0u].asString(), _respFunc);
     }
 
     void getPendingTxSizeI(const Json::Value& req, RespFunc _respFunc)
     {
         boost::ignore_unused(req);
-        getPendingTxSize(_respFunc);
+        getPendingTxSize(req[0u].asString(), _respFunc);
     }
 
     void getSyncStatusI(const Json::Value& req, RespFunc _respFunc)
     {
         boost::ignore_unused(req);
-        getSyncStatus(_respFunc);
+        getSyncStatus(req[0u].asString(), _respFunc);
     }
 
     void getSystemConfigByKeyI(const Json::Value& req, RespFunc _respFunc)
     {
-        getSystemConfigByKey(req[0u].asString(), _respFunc);
+        getSystemConfigByKey(req[0u].asString(), req[1u].asString(), _respFunc);
     }
 
     void getTotalTransactionCountI(const Json::Value& req, RespFunc _respFunc)
     {
         boost::ignore_unused(req);
-        getTotalTransactionCount(_respFunc);
+        getTotalTransactionCount(req[0u].asString(), _respFunc);
     }
 
     void getPeersI(const Json::Value& req, RespFunc _respFunc)
