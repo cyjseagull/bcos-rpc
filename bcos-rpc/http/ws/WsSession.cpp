@@ -124,7 +124,17 @@ void WsSession::onRead(boost::beast::error_code _ec, std::size_t _size)
 {
     if (_ec)
     {
-        WEBSOCKET_SESSION(ERROR) << LOG_BADGE("onRead") << LOG_KV("error", _ec);
+        if (_ec.value() == boost::asio::error::eof)
+        {
+            WEBSOCKET_SESSION(INFO)
+                << LOG_BADGE("onRead") << LOG_DESC(" the peer close the connection");
+        }
+        else
+        {
+            WEBSOCKET_SESSION(ERROR)
+                << LOG_BADGE("onRead") << LOG_KV("error", _ec) << LOG_KV("message", _ec.message());
+        }
+
         return drop();
     }
 
@@ -193,6 +203,8 @@ void WsSession::onWrite(boost::beast::error_code _ec, std::size_t)
 {
     if (_ec)
     {
+        WEBSOCKET_SESSION(ERROR) << LOG_BADGE("onWrite") << LOG_KV("error", _ec)
+                                 << LOG_KV("message", _ec.message());
         return drop();
     }
 
@@ -296,8 +308,6 @@ void WsSession::onRespTimeout(const boost::system::error_code& _error, const std
 {
     if (_error)
     {
-        WEBSOCKET_SESSION(TRACE) << LOG_BADGE("onRespTimeout") << LOG_KV("error", _error)
-                                 << LOG_KV("seq", _seq);
         return;
     }
 
