@@ -111,6 +111,85 @@ public:
 
     void getPeers(RespFunc _respFunc) override;
 
+    // TODO: implement the group manager related interfaces
+    // create a new group
+    void createGroup(std::string const& _groupInfo, RespFunc _respFunc) override
+    {
+        (void)_groupInfo;
+        (void)_respFunc;
+    }
+    // expand new node for the given group
+    void expandGroupNode(
+        std::string const& _groupID, std::string const& _nodeInfo, RespFunc _respFunc) override
+    {
+        (void)_groupID;
+        (void)_nodeInfo;
+        (void)_respFunc;
+    }
+    // remove the given group from the given chain
+    void removeGroup(std::string const& _groupID, RespFunc _respFunc) override
+    {
+        (void)_groupID;
+        (void)_respFunc;
+    }
+    // remove the given node from the given group
+    void removeGroupNode(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) override
+    {
+        (void)_groupID;
+        (void)_nodeName;
+        (void)_respFunc;
+    }
+    // recover the given group
+    void recoverGroup(std::string const& _groupID, RespFunc _respFunc) override
+    {
+        (void)_groupID;
+        (void)_respFunc;
+    }
+    // recover the given node of the given group
+    void recoverGroupNode(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) override
+    {
+        (void)_groupID;
+        (void)_nodeName;
+        (void)_respFunc;
+    }
+    // start the given node
+    void startNode(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) override
+    {
+        (void)_groupID;
+        (void)_nodeName;
+        (void)_respFunc;
+    }
+    // stop the given node
+    void stopNode(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) override
+    {
+        (void)_groupID;
+        (void)_nodeName;
+        (void)_respFunc;
+    }
+    // get all the groupID list
+    void getGroupList(RespFunc _respFunc) override { (void)_respFunc; }
+    // get all the group informations
+    void getGroupInfoList(RespFunc _respFunc) override { (void)_respFunc; }
+    // get the group information of the given group
+    void getGroupInfo(std::string const& _groupID, RespFunc _respFunc) override
+    {
+        (void)_groupID;
+        (void)_respFunc;
+    }
+    // get the information of a given node
+    void getGroupNodeInfo(
+        std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) override
+    {
+        (void)_groupID;
+        (void)_nodeName;
+        (void)_respFunc;
+    }
+
+
     // TODO: update this interface and add new interfaces to provide group list information
     void getNodeInfo(RespFunc _respFunc) override;
 
@@ -210,6 +289,70 @@ public:
     {
         boost::ignore_unused(req);
         getPeers(_respFunc);
+    }
+
+    // group manager related
+    void createGroupI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        createGroup(_req[0u].asString(), _respFunc);
+    }
+
+    void expandGroupNodeI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        expandGroupNode(_req[0u].asString(), _req[1u].asString(), _respFunc);
+    }
+    // remove the given group from the given chain
+    void removeGroupI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        removeGroup(_req[0u].asString(), _respFunc);
+    }
+    // remove the given node from the given group
+    void removeGroupNodeI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        removeGroupNode(_req[0u].asString(), _req[1u].asString(), _respFunc);
+    }
+    // recover the given group
+    void recoverGroupI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        recoverGroup(_req[0u].asString(), _respFunc);
+    }
+    // recover the given node of the given group
+    void recoverGroupNodeI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        recoverGroupNode(_req[0u].asString(), _req[1u].asString(), _respFunc);
+    }
+    // start the given node
+    void startNodeI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        startNode(_req[0u].asString(), _req[1u].asString(), _respFunc);
+    }
+    // stop the given node
+    void stopNodeI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        stopNode(_req[0u].asString(), _req[1u].asString(), _respFunc);
+    }
+    // get all the groupID list
+    void getGroupListI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        (void)_req;
+        getGroupList(_respFunc);
+    }
+    // get all the group informations
+    void getGroupInfoListI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        (void)_req;
+        getGroupInfoList(_respFunc);
+    }
+    // get the group information of the given group
+    void getGroupInfoI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        (void)_req;
+        getGroupInfo(_req[0u].asString(), _respFunc);
+    }
+    // get the information of a given node
+    void getGroupNodeInfoI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        getGroupNodeInfo(_req[0u].asString(), _req[1u].asString(), _respFunc);
     }
 
     void getNodeInfoI(const Json::Value& req, RespFunc _respFunc)

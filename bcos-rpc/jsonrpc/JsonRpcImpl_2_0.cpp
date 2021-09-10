@@ -83,6 +83,33 @@ void JsonRpcImpl_2_0::initMethod()
     m_methodToFunc["getNodeInfo"] = std::bind(
         &JsonRpcImpl_2_0::getNodeInfoI, this, std::placeholders::_1, std::placeholders::_2);
 
+    // group manager related method
+    m_methodToFunc["createGroup"] = std::bind(
+        &JsonRpcImpl_2_0::createGroupI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["expandGroupNode"] = std::bind(
+        &JsonRpcImpl_2_0::expandGroupNodeI, this, std::placeholders::_1, std::placeholders::_2);
+
+    m_methodToFunc["removeGroup"] = std::bind(
+        &JsonRpcImpl_2_0::removeGroupI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["removeGroupNode"] = std::bind(
+        &JsonRpcImpl_2_0::removeGroupNodeI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["recoverGroup"] = std::bind(
+        &JsonRpcImpl_2_0::recoverGroupI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["recoverGroupNode"] = std::bind(
+        &JsonRpcImpl_2_0::recoverGroupNodeI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["startNode"] =
+        std::bind(&JsonRpcImpl_2_0::startNodeI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["stopNode"] =
+        std::bind(&JsonRpcImpl_2_0::stopNodeI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["getGroupList"] = std::bind(
+        &JsonRpcImpl_2_0::getGroupListI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["getGroupInfoList"] = std::bind(
+        &JsonRpcImpl_2_0::getGroupInfoListI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["getGroupInfo"] = std::bind(
+        &JsonRpcImpl_2_0::getGroupInfoI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["getGroupNodeInfo"] = std::bind(
+        &JsonRpcImpl_2_0::getGroupNodeInfoI, this, std::placeholders::_1, std::placeholders::_2);
+
     for (const auto& method : m_methodToFunc)
     {
         RPC_IMPL_LOG(INFO) << LOG_BADGE("initMethod") << LOG_KV("method", method.first);
