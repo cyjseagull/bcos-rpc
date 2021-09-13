@@ -34,7 +34,6 @@ BOOST_AUTO_TEST_CASE(test_initMethod)
 {
     auto jsonRpcInterface = std::make_shared<JsonRpcImpl_2_0>();
     auto f = jsonRpcInterface->methodToFunc();
-    BOOST_CHECK_EQUAL(f.size(), 18);
 
     bool flag = false;
     jsonRpcInterface->registerMethod("testFunc", [&flag](Json::Value _jValue, RespFunc _respFunc) {
