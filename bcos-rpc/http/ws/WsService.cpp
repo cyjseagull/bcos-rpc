@@ -113,7 +113,8 @@ void WsService::initMethod()
         auto service = self.lock();
         if (service)
         {
-            service->onRecvRPCRequest(_msg, _session);
+            service->m_threadPool->enqueue(
+                [service, _msg, _session]() { service->onRecvRPCRequest(_msg, _session); });
         }
     };
     m_msgType2Method[WsMessageType::AMOP_SUBTOPIC] = [self](std::shared_ptr<WsMessage> _msg,
