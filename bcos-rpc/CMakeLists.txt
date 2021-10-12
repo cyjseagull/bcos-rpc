@@ -5,7 +5,8 @@ file(GLOB SRC_LIST "*.cpp")
 file(GLOB HEADERS "*.h")
 
 add_subdirectory(amop)
-add_subdirectory(http)
+add_subdirectory(event)
+# add_subdirectory(http)
 add_subdirectory(jsonrpc)
 
 add_library(${RPC_TARGET} ${SRC_LIST} ${HEADERS})

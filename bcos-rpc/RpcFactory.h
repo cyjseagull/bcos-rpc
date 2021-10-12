@@ -21,28 +21,30 @@
 
 #pragma once
 #include "bcos-rpc/jsonrpc/groupmgr/GroupManager.h"
+#include <bcos-boostssl/websocket/WsConfig.h>
+#include <bcos-framework/interfaces/consensus/ConsensusInterface.h>
 #include <bcos-framework/interfaces/crypto/KeyFactory.h>
 #include <bcos-framework/interfaces/gateway/GatewayInterface.h>
 #include <bcos-rpc/Rpc.h>
 #include <bcos-rpc/amop/AMOP.h>
+#include <bcos-rpc/event/EventSub.h>
 #include <bcos-rpc/http/ws/WsService.h>
 #include <bcos-rpc/http/ws/WsSession.h>
 #include <bcos-rpc/jsonrpc/JsonRpcImpl_2_0.h>
 
 namespace bcos
 {
+namespace boostssl
+{
+namespace ws
+{
+class WsService;
+class WsSession;
+}  // namespace ws
+}  // namespace boostssl
+
 namespace rpc
 {
-// rpc config
-struct RpcConfig
-{
-    std::string m_listenIP;
-    uint16_t m_listenPort;
-    std::size_t m_threadCount;
-
-    void initConfig(const std::string& _configPath);
-};
-
 class RpcFactory : public std::enable_shared_from_this<RpcFactory>
 {
 public:
@@ -51,31 +53,36 @@ public:
         bcos::crypto::KeyFactory::Ptr _keyFactory);
     virtual ~RpcFactory() {}
 
-    bcos::amop::AMOP::Ptr buildAMOP();
-    JsonRpcInterface::Ptr buildJsonRpc();
-    ws::WsSession::Ptr buildWsSession(
-        boost::asio::ip::tcp::socket&& _socket, std::weak_ptr<ws::WsService> _wsService);
+    std::shared_ptr<boostssl::ws::WsConfig> initConfig(const std::string& _configPath);
+    std::shared_ptr<boostssl::ws::WsService> buildWsService(
+        bcos::boostssl::ws::WsConfig::Ptr _config);
+    bcos::amop::AMOP::Ptr buildAMOP(std::shared_ptr<boostssl::ws::WsService> _wsService);
+    bcos::rpc::JsonRpcImpl_2_0::Ptr buildJsonRpc(
+        std::shared_ptr<boostssl::ws::WsService> _wsService);
+    bcos::event::EventSub::Ptr buildEventSub(std::shared_ptr<boostssl::ws::WsService> _wsService);
 
     /**
      * @brief: Rpc
-     * @param _rpcConfig: rpc config
-     * @param _nodeInfo: node config
+     * @param _config: WsConfig
      * @return Rpc::Ptr:
      */
-    Rpc::Ptr buildRpc(const RpcConfig& _rpcConfig);
+    Rpc::Ptr buildRpc(bcos::boostssl::ws::WsConfig::Ptr _config);
 
     /**
      * @brief: Rpc
      * @param _configPath: rpc config path
-     * @param _nodeInfo: node config
      * @return Rpc::Ptr:
      */
     Rpc::Ptr buildRpc(const std::string& _configPath);
+    bcos::boostssl::ws::WsConfig::Ptr config() const { return m_config; }
+    void setConfig(bcos::boostssl::ws::WsConfig::Ptr _config) { m_config = _config; }
+
 
 private:
     bcos::gateway::GatewayInterface::Ptr m_gatewayInterface;
     std::shared_ptr<bcos::crypto::KeyFactory> m_keyFactory;
     GroupManager::Ptr m_groupManager;
+    bcos::boostssl::ws::WsConfig::Ptr m_config;
 };
 }  // namespace rpc
 }  // namespace bcos

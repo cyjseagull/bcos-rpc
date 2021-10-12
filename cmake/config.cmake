@@ -17,6 +17,12 @@ hunter_config(bcos-tars-protocol
     CMAKE_ARGS HUNTER_PACKAGE_LOG_BUILD=ON HUNTER_PACKAGE_LOG_INSTALL=ON URL_BASE=${URL_BASE}
 )
 
+hunter_config(bcos-boostssl
+	VERSION 3.0.0-local
+	URL "https://${URL_BASE}/FISCO-BCOS/bcos-boostssl/archive/1b972a6734ef49ac4ca56184d31fe54a08a97e82.tar.gz"
+	SHA1 6d35d940eacb7f41db779fb8182cbebf50535574
+)
+
 hunter_config(bcos-ledger
     VERSION 3.0.0-local
     URL https://${URL_BASE}/FISCO-BCOS/bcos-ledger/archive/bfc54bbc1af88e010827eb95ae96c0b9e3eec2b7.tar.gz

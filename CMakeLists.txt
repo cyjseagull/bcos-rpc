@@ -51,6 +51,12 @@ HunterGate(
 project(bcos-rpc VERSION "3.0.0")
 set(VERSION_SUFFIX "")
 
+hunter_add_package(OpenSSL)
+find_package(OpenSSL REQUIRED)
+
+hunter_add_package(bcos-boostssl)
+find_package(bcos-boostssl CONFIG REQUIRED)
+
 hunter_add_package(jsoncpp)
 find_package(jsoncpp CONFIG REQUIRED)
 
@@ -73,10 +79,9 @@ include(InstallBcosCryptoDependencies)
 #include(InstallBcosLedgerDependencies)
 
 set(RPC_TARGET "rpc")
+set(EVENT_TARGET "event")
 set(AMOP_TARGET "amop")
 set(JSONRPC_TARGET "jsonrpc")
-set(HTTP_TARGET "http")
-set(WS_SERVICE_TARGET "wsservice")
 
 add_subdirectory(bcos-rpc)
 
@@ -106,15 +111,6 @@ install(
 )
 
 install(
-    TARGETS ${HTTP_TARGET}
-    EXPORT "${TARGETS_EXPORT_NAME}"
-    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-    INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-)
-
-install(
     TARGETS ${AMOP_TARGET}
     EXPORT "${TARGETS_EXPORT_NAME}"
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -124,7 +120,7 @@ install(
 )
 
 install(
-    TARGETS ${WS_SERVICE_TARGET}
+    TARGETS ${EVENT_TARGET}
     EXPORT "${TARGETS_EXPORT_NAME}"
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
