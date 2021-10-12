@@ -28,8 +28,6 @@
 #include <bcos-rpc/Rpc.h>
 #include <bcos-rpc/amop/AMOP.h>
 #include <bcos-rpc/event/EventSub.h>
-#include <bcos-rpc/http/ws/WsService.h>
-#include <bcos-rpc/http/ws/WsSession.h>
 #include <bcos-rpc/jsonrpc/JsonRpcImpl_2_0.h>
 
 namespace bcos

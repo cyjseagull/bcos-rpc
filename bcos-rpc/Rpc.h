@@ -83,7 +83,7 @@ public:
     void asyncNotifyGroupInfo(bcos::group::GroupInfo::Ptr _groupInfo,
         std::function<void(Error::Ptr&&)> _callback) override
     {
-        m_wsService->jsonRpcInterface()->updateGroupInfo(_groupInfo);
+        m_jsonRpcImpl->updateGroupInfo(_groupInfo);
         BCOS_LOG(INFO) << LOG_DESC("asyncNotifyGroupInfo: update the groupInfo")
                        << printGroupInfo(_groupInfo);
         if (_callback)

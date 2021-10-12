@@ -37,7 +37,6 @@
 
 using namespace bcos;
 using namespace bcos::rpc;
-using namespace bcos::http;
 using namespace bcos::protocol;
 using namespace bcos::crypto;
 using namespace bcos::gateway;
@@ -162,14 +161,6 @@ bcos::rpc::JsonRpcImpl_2_0::Ptr RpcFactory::buildJsonRpc(
     // JsonRpcImpl_2_0
     auto jsonRpcInterface =
         std::make_shared<bcos::rpc::JsonRpcImpl_2_0>(m_groupManager, m_gatewayInterface);
-    jsonRpcInterface->setLedger(m_ledgerInterface);
-    jsonRpcInterface->setTxPoolInterface(m_txPoolInterface);
-    jsonRpcInterface->setExecutorInterface(m_executorInterface);
-    jsonRpcInterface->setConsensusInterface(m_consensusInterface);
-    jsonRpcInterface->setBlockSyncInterface(m_blockSyncInterface);
-    jsonRpcInterface->setTransactionFactory(m_transactionFactory);
-    jsonRpcInterface->setGatewayInterface(m_gatewayInterface);
-
     auto httpServer = _wsService->httpServer();
     if (httpServer)
     {
