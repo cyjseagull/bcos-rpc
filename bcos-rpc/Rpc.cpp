@@ -19,6 +19,7 @@
  * @date 2021-07-15
  */
 
+#include <bcos-boostssl/websocket/WsService.h>
 #include <bcos-framework/libutilities/Log.h>
 #include <bcos-rpc/Rpc.h>
 using namespace bcos;
@@ -28,46 +29,25 @@ void Rpc::start()
 {
     // start amop
     m_AMOP->start();
+    // start event sub
+    // m_eventSub->start();
     // start websocket service
     m_wsService->start();
-    // start jsonhttp service
-    m_httpServer->startListen();
-    // start thread for io
-    startThread();
-    BCOS_LOG(INFO) << LOG_DESC("[RPC][RPC][start]") << LOG_DESC("start amop successfully");
+    BCOS_LOG(INFO) << LOG_DESC("[RPC][RPC][start]") << LOG_DESC("start rpc successfully");
 }
 
 void Rpc::stop()
 {
-    // stop io
-    if (m_ioc && !m_ioc->stopped())
-    {
-        m_ioc->stop();
-    }
-
-    // stop thread
-    if (m_threads && !m_threads->empty())
-    {
-        for (auto& t : *m_threads)
-        {
-            if (t.joinable())
-            {
-                t.join();
-            }
-        }
-        m_threads->clear();
-    }
-
-    // stop http server
-    if (m_httpServer)
-    {
-        m_httpServer->stop();
-    }
-
     // stop ws service
     if (m_wsService)
     {
         m_wsService->stop();
+    }
+
+    // stop event sub
+    if (m_eventSub)
+    {
+        m_eventSub->stop();
     }
 
     // stop amop
@@ -76,7 +56,7 @@ void Rpc::stop()
         m_AMOP->stop();
     }
 
-    BCOS_LOG(INFO) << LOG_DESC("[RPC][RPC][stop]") << LOG_DESC("stop amop successfully");
+    BCOS_LOG(INFO) << LOG_DESC("[RPC][RPC][stop]") << LOG_DESC("stop rpc successfully");
 }
 
 /**
@@ -88,11 +68,30 @@ void Rpc::stop()
 void Rpc::asyncNotifyBlockNumber(
     bcos::protocol::BlockNumber _blockNumber, std::function<void(Error::Ptr)> _callback)
 {
-    m_wsService->notifyBlockNumberToClient(_blockNumber);
+    auto ss = m_wsService->sessions();
+    for (const auto& s : ss)
+    {
+        if (s && s->isConnected())
+        {
+            std::string group;
+            // TODO: For multiple groups, there should be group params
+            // eg: {"blockNumber": 11, "group": "group"}
+            std::string resp = "{\"group\":  " + group +
+                               " ,\"blockNumber\": " + std::to_string(_blockNumber) + "}";
+            auto message =
+                m_wsService->messageFactory()->buildMessage(bcos::rpc::MessageType::BLOCK_NOTIFY,
+                    std::make_shared<bcos::bytes>(resp.begin(), resp.end()));
+            s->asyncSendMessage(message);
+        }
+    }
+
     if (_callback)
     {
         _callback(nullptr);
     }
+
+    WEBSOCKET_SERVICE(INFO) << LOG_BADGE("asyncNotifyBlockNumber")
+                            << LOG_KV("blockNumber", _blockNumber) << LOG_KV("ss size", ss.size());
 }
 
 /**
