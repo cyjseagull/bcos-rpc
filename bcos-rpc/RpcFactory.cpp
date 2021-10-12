@@ -19,16 +19,15 @@
  * @date 2021-07-15
  */
 
+#include <bcos-boostssl/websocket/WsInitializer.h>
+#include <bcos-boostssl/websocket/WsMessage.h>
+#include <bcos-boostssl/websocket/WsService.h>
 #include <bcos-framework/libutilities/Exceptions.h>
 #include <bcos-framework/libutilities/FileUtility.h>
 #include <bcos-framework/libutilities/Log.h>
 #include <bcos-framework/libutilities/ThreadPool.h>
 #include <bcos-rpc/RpcFactory.h>
 #include <bcos-rpc/amop/TopicManager.h>
-#include <bcos-rpc/http/HttpServer.h>
-#include <bcos-rpc/http/ws/Common.h>
-#include <bcos-rpc/http/ws/WsMessage.h>
-#include <bcos-rpc/http/ws/WsSession.h>
 #include <bcos-rpc/jsonrpc/JsonRpcImpl_2_0.h>
 #include <boost/core/ignore_unused.hpp>
 #include <boost/property_tree/ini_parser.hpp>
@@ -38,10 +37,10 @@
 
 using namespace bcos;
 using namespace bcos::rpc;
-using namespace bcos::http;
 using namespace bcos::protocol;
 using namespace bcos::crypto;
 using namespace bcos::gateway;
+using namespace bcos::amop;
 
 RpcFactory::RpcFactory(std::string const& _chainID, GatewayInterface::Ptr _gatewayInterface,
     KeyFactory::Ptr _keyFactory)
@@ -51,7 +50,7 @@ RpcFactory::RpcFactory(std::string const& _chainID, GatewayInterface::Ptr _gatew
     m_groupManager = std::make_shared<GroupManager>(_chainID, nodeServiceFactory);
 }
 
-void RpcConfig::initConfig(const std::string& _configPath)
+std::shared_ptr<bcos::boostssl::ws::WsConfig> RpcFactory::initConfig(const std::string& _configPath)
 {
     try
     {
@@ -67,20 +66,17 @@ void RpcConfig::initConfig(const std::string& _configPath)
         int listenPort = pt.get<int>("rpc.listen_port", 20200);
         int threadCount = pt.get<int>("rpc.thread_count", 8);
 
-        auto validPort = [](int port) -> bool { return (port <= 65535 && port > 1024); };
-        if (!validPort(listenPort))
-        {
-            BOOST_THROW_EXCEPTION(
-                InvalidParameter() << errinfo_comment(
-                    "initConfig: invalid rpc listen port, port=" + std::to_string(listenPort)));
-        }
-
-        m_listenIP = listenIP;
-        m_listenPort = listenPort;
-        m_threadCount = threadCount;
+        auto config = std::make_shared<boostssl::ws::WsConfig>();
+        config->setModel(bcos::boostssl::ws::WsModel::Server);
+        config->setListenIP(listenIP);
+        config->setListenPort(listenPort);
+        config->setThreadPoolSize(threadCount);
 
         BCOS_LOG(INFO) << LOG_DESC("[RPC][FACTORY][initConfig]") << LOG_KV("listenIP", listenIP)
-                       << LOG_KV("listenPort", listenPort) << LOG_KV("threadCount", threadCount);
+                       << LOG_KV("listenPort", listenPort) << LOG_KV("threadCount", threadCount)
+                       << LOG_KV("asServer", config->asServer());
+
+        return config;
     }
     catch (const std::exception& e)
     {
@@ -95,22 +91,97 @@ void RpcConfig::initConfig(const std::string& _configPath)
     }
 }
 
-bcos::amop::AMOP::Ptr RpcFactory::buildAMOP()
+bcos::boostssl::ws::WsService::Ptr RpcFactory::buildWsService(
+    bcos::boostssl::ws::WsConfig::Ptr _config)
 {
-    auto amop = std::make_shared<bcos::amop::AMOP>();
+    auto wsService = std::make_shared<bcos::boostssl::ws::WsService>();
+    auto initializer = std::make_shared<bcos::boostssl::ws::WsInitializer>();
+
+    initializer->setConfig(_config);
+    initializer->initWsService(wsService);
+    return wsService;
+}
+
+bcos::amop::AMOP::Ptr RpcFactory::buildAMOP(std::shared_ptr<boostssl::ws::WsService> _wsService)
+{
+    auto topicManager = std::make_shared<amop::TopicManager>();
     auto messageFactory = std::make_shared<bcos::amop::MessageFactory>();
+    auto amop = std::make_shared<bcos::amop::AMOP>();
+    auto requestFactory = std::make_shared<AMOPRequestFactory>();
+
+    auto amopWeak = std::weak_ptr<bcos::amop::AMOP>(amop);
+    auto wsServiceWeak = std::weak_ptr<boostssl::ws::WsService>(_wsService);
+
     amop->setKeyFactory(m_keyFactory);
     amop->setMessageFactory(messageFactory);
+    amop->setWsMessageFactory(_wsService->messageFactory());
+    amop->setTopicManager(topicManager);
+    amop->setIoc(_wsService->ioc());
+    amop->setWsService(wsServiceWeak);
+    amop->setRequestFactory(requestFactory);
+    amop->setThreadPool(_wsService->threadPool());
+
+    _wsService->registerMsgHandler(bcos::amop::MessageType::AMOP_SUBTOPIC,
+        [amopWeak](std::shared_ptr<boostssl::ws::WsMessage> _msg,
+            std::shared_ptr<boostssl::ws::WsSession> _session) {
+            auto amop = amopWeak.lock();
+            if (amop)
+            {
+                amop->onRecvSubTopics(_msg, _session);
+            }
+        });
+
+    _wsService->registerMsgHandler(bcos::amop::MessageType::AMOP_REQUEST,
+        [amopWeak](std::shared_ptr<boostssl::ws::WsMessage> _msg,
+            std::shared_ptr<boostssl::ws::WsSession> _session) {
+            auto amop = amopWeak.lock();
+            if (amop)
+            {
+                amop->onRecvAMOPRequest(_msg, _session);
+            }
+        });
+
+    _wsService->registerMsgHandler(bcos::amop::MessageType::AMOP_BROADCAST,
+        [amopWeak](std::shared_ptr<boostssl::ws::WsMessage> _msg,
+            std::shared_ptr<boostssl::ws::WsSession> _session) {
+            auto amop = amopWeak.lock();
+            if (amop)
+            {
+                amop->onRecvAMOPBroadcast(_msg, _session);
+            }
+        });
+
     return amop;
 }
 
-JsonRpcInterface::Ptr RpcFactory::buildJsonRpc()
+bcos::rpc::JsonRpcImpl_2_0::Ptr RpcFactory::buildJsonRpc(
+    std::shared_ptr<boostssl::ws::WsService> _wsService)
 {
     assert(m_groupManager);
     // JsonRpcImpl_2_0
     auto jsonRpcInterface =
         std::make_shared<bcos::rpc::JsonRpcImpl_2_0>(m_groupManager, m_gatewayInterface);
+    auto httpServer = _wsService->httpServer();
+    if (httpServer)
+    {
+        httpServer->setHttpReqHandler(std::bind(&bcos::rpc::JsonRpcInterface::onRPCRequest,
+            jsonRpcInterface, std::placeholders::_1, std::placeholders::_2));
+    }
+    else
+    {
+        BCOS_LOG(INFO) << LOG_DESC("[RPC][FACTORY][buildJsonRpc]")
+                       << LOG_DESC("http server is null") << LOG_KV("model", m_config->model());
+    }
+
     return jsonRpcInterface;
+}
+
+bcos::event::EventSub::Ptr RpcFactory::buildEventSub(
+    std::shared_ptr<boostssl::ws::WsService> _wsService)
+{
+    // TODO:
+    boost::ignore_unused(_wsService);
+    return nullptr;
 }
 
 /**
@@ -120,113 +191,38 @@ JsonRpcInterface::Ptr RpcFactory::buildJsonRpc()
  */
 Rpc::Ptr RpcFactory::buildRpc(const std::string& _configPath)
 {
-    RpcConfig rpcConfig;
-    rpcConfig.initConfig(_configPath);
-    return buildRpc(rpcConfig);
+    auto config = initConfig(_configPath);
+    return buildRpc(config);
 }
 
-ws::WsSession::Ptr RpcFactory::buildWsSession(
-    boost::asio::ip::tcp::socket&& _socket, std::weak_ptr<ws::WsService> _wsServicePtr)
-{
-    auto session = std::make_shared<ws::WsSession>(std::move(_socket));
-    auto sessionWeakPtr = std::weak_ptr<ws::WsSession>(session);
-    session->setAcceptHandler(
-        [_wsServicePtr](bcos::Error::Ptr _error, std::shared_ptr<ws::WsSession> _session) {
-            boost::ignore_unused(_error);
-            auto service = _wsServicePtr.lock();
-            if (service)
-            {
-                service->addSession(_session);
-            }
-        });
-    session->setDisconnectHandler(
-        [_wsServicePtr](bcos::Error::Ptr _error, std::shared_ptr<ws::WsSession> _session) {
-            auto service = _wsServicePtr.lock();
-            if (service)
-            {
-                service->onDisconnect(_error, _session);
-            }
-        });
-    session->setRecvMessageHandler(
-        [_wsServicePtr](bcos::Error::Ptr _error, std::shared_ptr<ws::WsMessage> _msg,
-            std::shared_ptr<ws::WsSession> _session) {
-            auto service = _wsServicePtr.lock();
-            if (service)
-            {
-                service->onRecvClientMessage(_error, _msg, _session);
-            }
-        });
-    return session;
-}
 /**
  * @brief: Rpc
- * @param _rpcConfig: rpc config
+ * @param _config: WsConfig
+ * @param _nodeInfo: node info
  * @return Rpc::Ptr:
  */
-Rpc::Ptr RpcFactory::buildRpc(const RpcConfig& _rpcConfig)
+Rpc::Ptr RpcFactory::buildRpc(bcos::boostssl::ws::WsConfig::Ptr _config)
 {
-    const std::string _listenIP = _rpcConfig.m_listenIP;
-    uint16_t _listenPort = _rpcConfig.m_listenPort;
-    std::size_t _threadCount = _rpcConfig.m_threadCount;
+    // checkParams();
 
-    // io_context
-    auto ioc = std::make_shared<boost::asio::io_context>();
-    auto threads = std::make_shared<std::vector<std::thread>>();
+    auto wsService = buildWsService(_config);
 
-    // JsonRpcImpl_2_0
-    auto jsonRpcInterface = buildJsonRpc();
-
-    // HttpServer
-    auto httpServerFactory = std::make_shared<bcos::http::HttpServerFactory>();
-    auto httpServer = httpServerFactory->buildHttpServer(_listenIP, _listenPort, ioc);
-    httpServer->setRequestHandler(std::bind(&bcos::rpc::JsonRpcInterface::onRPCRequest,
-        jsonRpcInterface, std::placeholders::_1, std::placeholders::_2));
-
-    auto topicManager = std::make_shared<amop::TopicManager>();
-    auto wsMessageFactory = std::make_shared<ws::WsMessageFactory>();
-    auto requestFactory = std::make_shared<ws::AMOPRequestFactory>();
-
-    auto threadPool = std::make_shared<bcos::ThreadPool>("ws-service", _threadCount);
-    // WsService
-    auto wsService = std::make_shared<ws::WsService>();
-    auto weakWsService = std::weak_ptr<ws::WsService>(wsService);
-    wsService->setJsonRpcInterface(jsonRpcInterface);
-    wsService->setTopicManager(topicManager);
-    wsService->setIoc(ioc);
-    wsService->setMessageFactory(wsMessageFactory);
-    wsService->setRequestFactory(requestFactory);
-    wsService->setThreadPool(threadPool);
-
-    auto rpcFactory = shared_from_this();
-    httpServer->setWsUpgradeHandler(
-        [threadPool, wsMessageFactory, weakWsService, rpcFactory](
-            boost::asio::ip::tcp::socket&& _socket, HttpRequest&& _httpRequest) {
-            auto session = rpcFactory->buildWsSession(std::move(_socket), weakWsService);
-            session->setThreadPool(threadPool);
-            session->setMessageFactory(wsMessageFactory);
-            // start websocket handshake
-            session->doAccept(std::move(_httpRequest));
-        });
-    wsService->initMethod();
-
+    // JsonRpc
+    auto jsonRpc = buildJsonRpc(wsService);
     // AMOP
-    auto amop = buildAMOP();
-    amop->setTopicManager(topicManager);
-    amop->setIoService(ioc);
+    auto amop = buildAMOP(wsService);
+    // EventSub
+    auto es = buildEventSub(wsService);
 
-    // rpc
     auto rpc = std::make_shared<Rpc>();
-    rpc->setHttpServer(httpServer);
     rpc->setWsService(wsService);
     rpc->setAMOP(amop);
-    rpc->setIoc(ioc);
-    rpc->setThreadC(_threadCount);
-    rpc->setThreads(threads);
+    rpc->setEventSub(es);
+    rpc->setJsonRpcImpl(jsonRpc);
 
-    amop->setWsService(std::weak_ptr<ws::WsService>(wsService));
-    wsService->setAMOP(std::weak_ptr<amop::AMOP>(amop));
-
-    BCOS_LOG(INFO) << LOG_DESC("[RPC][FACTORY][buildRpc]") << LOG_KV("listenIP", _listenIP)
-                   << LOG_KV("listenPort", _listenPort) << LOG_KV("threadCount", _threadCount);
+    BCOS_LOG(INFO) << LOG_DESC("[RPC][FACTORY][buildRpc]")
+                   << LOG_KV("listenIP", _config->listenIP())
+                   << LOG_KV("listenPort", _config->listenPort())
+                   << LOG_KV("threadCount", _config->threadPoolSize());
     return rpc;
 }
