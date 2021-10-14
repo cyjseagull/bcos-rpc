@@ -22,6 +22,8 @@
 #include <bcos-boostssl/websocket/WsInitializer.h>
 #include <bcos-boostssl/websocket/WsMessage.h>
 #include <bcos-boostssl/websocket/WsService.h>
+#include <bcos-framework/interfaces/multigroup/ChainNodeInfoFactory.h>
+#include <bcos-framework/interfaces/multigroup/GroupInfoFactory.h>
 #include <bcos-framework/libutilities/Exceptions.h>
 #include <bcos-framework/libutilities/FileUtility.h>
 #include <bcos-framework/libutilities/Log.h>
@@ -41,13 +43,16 @@ using namespace bcos::protocol;
 using namespace bcos::crypto;
 using namespace bcos::gateway;
 using namespace bcos::amop;
+using namespace bcos::group;
 
 RpcFactory::RpcFactory(std::string const& _chainID, GatewayInterface::Ptr _gatewayInterface,
-    KeyFactory::Ptr _keyFactory)
+    GroupManagerInterface::Ptr _groupMgr, GroupInfoFactory::Ptr _groupInfoFactory,
+    ChainNodeInfoFactory::Ptr _chainNodeInfoFactory, KeyFactory::Ptr _keyFactory)
   : m_gatewayInterface(_gatewayInterface), m_keyFactory(_keyFactory)
 {
     auto nodeServiceFactory = std::make_shared<NodeServiceFactory>();
-    m_groupManager = std::make_shared<GroupManager>(_chainID, nodeServiceFactory);
+    m_groupManager = std::make_shared<GroupManager>(
+        _chainID, nodeServiceFactory, _groupMgr, _groupInfoFactory, _chainNodeInfoFactory);
 }
 
 std::shared_ptr<bcos::boostssl::ws::WsConfig> RpcFactory::initConfig(const std::string& _configPath)
@@ -104,23 +109,13 @@ bcos::boostssl::ws::WsService::Ptr RpcFactory::buildWsService(
 
 bcos::amop::AMOP::Ptr RpcFactory::buildAMOP(std::shared_ptr<boostssl::ws::WsService> _wsService)
 {
-    auto topicManager = std::make_shared<amop::TopicManager>();
     auto messageFactory = std::make_shared<bcos::amop::MessageFactory>();
-    auto amop = std::make_shared<bcos::amop::AMOP>();
+    auto topicManager = std::make_shared<amop::TopicManager>();
     auto requestFactory = std::make_shared<AMOPRequestFactory>();
-
-    auto amopWeak = std::weak_ptr<bcos::amop::AMOP>(amop);
-    auto wsServiceWeak = std::weak_ptr<boostssl::ws::WsService>(_wsService);
-
-    amop->setKeyFactory(m_keyFactory);
-    amop->setMessageFactory(messageFactory);
-    amop->setWsMessageFactory(_wsService->messageFactory());
-    amop->setTopicManager(topicManager);
-    amop->setIoc(_wsService->ioc());
-    amop->setWsService(wsServiceWeak);
-    amop->setRequestFactory(requestFactory);
+    auto amop = std::make_shared<bcos::amop::AMOP>(
+        _wsService, messageFactory, topicManager, requestFactory, m_keyFactory);
     amop->setThreadPool(_wsService->threadPool());
-
+    auto amopWeak = std::weak_ptr<bcos::amop::AMOP>(amop);
     _wsService->registerMsgHandler(bcos::amop::MessageType::AMOP_SUBTOPIC,
         [amopWeak](std::shared_ptr<boostssl::ws::WsMessage> _msg,
             std::shared_ptr<boostssl::ws::WsSession> _session) {
@@ -167,12 +162,6 @@ bcos::rpc::JsonRpcImpl_2_0::Ptr RpcFactory::buildJsonRpc(
         httpServer->setHttpReqHandler(std::bind(&bcos::rpc::JsonRpcInterface::onRPCRequest,
             jsonRpcInterface, std::placeholders::_1, std::placeholders::_2));
     }
-    else
-    {
-        BCOS_LOG(INFO) << LOG_DESC("[RPC][FACTORY][buildJsonRpc]")
-                       << LOG_DESC("http server is null") << LOG_KV("model", m_config->model());
-    }
-
     return jsonRpcInterface;
 }
 
@@ -214,12 +203,7 @@ Rpc::Ptr RpcFactory::buildRpc(bcos::boostssl::ws::WsConfig::Ptr _config)
     // EventSub
     auto es = buildEventSub(wsService);
 
-    auto rpc = std::make_shared<Rpc>();
-    rpc->setWsService(wsService);
-    rpc->setAMOP(amop);
-    rpc->setEventSub(es);
-    rpc->setJsonRpcImpl(jsonRpc);
-
+    auto rpc = std::make_shared<Rpc>(wsService, jsonRpc, es, amop);
     BCOS_LOG(INFO) << LOG_DESC("[RPC][FACTORY][buildRpc]")
                    << LOG_KV("listenIP", _config->listenIP())
                    << LOG_KV("listenPort", _config->listenPort())
