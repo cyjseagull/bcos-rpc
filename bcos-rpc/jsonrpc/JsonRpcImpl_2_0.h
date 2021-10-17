@@ -21,7 +21,7 @@
 
 #pragma once
 #include <bcos-framework/interfaces/consensus/ConsensusInterface.h>
-#include <bcos-framework/interfaces/executor/ExecutorInterface.h>
+#include <bcos-framework/interfaces/dispatcher/SchedulerInterface.h>
 #include <bcos-framework/interfaces/gateway/GatewayInterface.h>
 #include <bcos-framework/interfaces/ledger/LedgerInterface.h>
 #include <bcos-framework/interfaces/sync/BlockSyncInterface.h>
@@ -407,15 +407,6 @@ public:
         m_ledgerInterface = _ledgerInterface;
     }
 
-    std::shared_ptr<bcos::executor::ExecutorInterface> executorInterface() const
-    {
-        return m_executorInterface;
-    }
-    void setExecutorInterface(std::shared_ptr<bcos::executor::ExecutorInterface> _executorInterface)
-    {
-        m_executorInterface = _executorInterface;
-    }
-
     bcos::txpool::TxPoolInterface::Ptr txPoolInterface() const { return m_txPoolInterface; }
     void setTxPoolInterface(bcos::txpool::TxPoolInterface::Ptr _txPoolInterface)
     {
@@ -461,8 +452,8 @@ private:
         m_methodToFunc;
 
     bcos::ledger::LedgerInterface::Ptr m_ledgerInterface;
-    std::shared_ptr<bcos::executor::ExecutorInterface> m_executorInterface;
     bcos::txpool::TxPoolInterface::Ptr m_txPoolInterface;
+    bcos::scheduler::SchedulerInterface::Ptr m_scheduler;
     bcos::consensus::ConsensusInterface::Ptr m_consensusInterface;
     bcos::sync::BlockSyncInterface::Ptr m_blockSyncInterface;
     bcos::gateway::GatewayInterface::Ptr m_gatewayInterface;

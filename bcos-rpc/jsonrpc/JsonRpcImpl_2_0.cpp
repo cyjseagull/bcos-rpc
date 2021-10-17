@@ -511,9 +511,9 @@ void JsonRpcImpl_2_0::call(std::string const& _groupID, std::string const& _node
     auto transaction =
         m_transactionFactory->createTransaction(0, _to, *decodeData(_data), u256(0), 0, "", "", 0);
 
-    m_executorInterface->asyncExecuteTransaction(
-        transaction, [_to, _respFunc](const Error::Ptr& _error,
-                         const protocol::TransactionReceipt::ConstPtr& _transactionReceiptPtr) {
+    m_scheduler->call(std::move(transaction),
+        [_to, _respFunc](const Error::Ptr& _error,
+            const protocol::TransactionReceipt::ConstPtr& _transactionReceiptPtr) {
             Json::Value jResp;
             if (!_error || (_error->errorCode() == bcos::protocol::CommonError::SUCCESS))
             {
@@ -883,29 +883,37 @@ void JsonRpcImpl_2_0::getCode(std::string const& _groupID, std::string const& _n
     RPC_IMPL_LOG(TRACE) << LOG_BADGE("getCode") << LOG_KV("contractAddress", _contractAddress)
                         << LOG_KV("group", _groupID) << LOG_KV("node", _nodeName);
 
-    m_executorInterface->asyncGetCode(
-        std::string_view(_contractAddress), [_contractAddress, _respFunc](const Error::Ptr& _error,
-                                                const std::shared_ptr<bytes>& _codeData) {
-            std::string code;
-            if (!_error || (_error->errorCode() == bcos::protocol::CommonError::SUCCESS))
-            {
-                if (_codeData)
-                {
-                    code = toHexStringWithPrefix(
-                        bcos::bytesConstRef(_codeData->data(), _codeData->size()));
-                }
-            }
-            else
-            {
-                RPC_IMPL_LOG(ERROR)
-                    << LOG_BADGE("getCode") << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
-                    << LOG_KV("errorMessage", _error ? _error->errorMessage() : "success")
-                    << LOG_KV("contractAddress", _contractAddress);
-            }
+    // TODO: add getCode() to scheduler
 
-            Json::Value jResp = code;
-            _respFunc(_error, jResp);
-        });
+    std::string code;
+    Json::Value jResp = code;
+    _respFunc(nullptr, jResp);
+
+    // m_executorInterface->asyncGetCode(
+    //     std::string_view(_contractAddress), [_contractAddress, _respFunc](const Error::Ptr&
+    //     _error,
+    //                                             const std::shared_ptr<bytes>& _codeData) {
+    //         std::string code;
+    //         if (!_error || (_error->errorCode() == bcos::protocol::CommonError::SUCCESS))
+    //         {
+    //             if (_codeData)
+    //             {
+    //                 code = toHexStringWithPrefix(
+    //                     bcos::bytesConstRef(_codeData->data(), _codeData->size()));
+    //             }
+    //         }
+    //         else
+    //         {
+    //             RPC_IMPL_LOG(ERROR)
+    //                 << LOG_BADGE("getCode") << LOG_KV("errorCode", _error ? _error->errorCode() :
+    //                 0)
+    //                 << LOG_KV("errorMessage", _error ? _error->errorMessage() : "success")
+    //                 << LOG_KV("contractAddress", _contractAddress);
+    //         }
+
+    //         Json::Value jResp = code;
+    //         _respFunc(_error, jResp);
+    //     });
 }
 
 void JsonRpcImpl_2_0::getSealerList(
