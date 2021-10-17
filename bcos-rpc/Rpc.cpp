@@ -65,8 +65,9 @@ void Rpc::stop()
  * @param _callback: resp callback
  * @return void
  */
-void Rpc::asyncNotifyBlockNumber(
-    bcos::protocol::BlockNumber _blockNumber, std::function<void(Error::Ptr)> _callback)
+void Rpc::asyncNotifyBlockNumber([[maybe_unused]] std::string const& _groupID,
+    [[maybe_unused]] std::string const& _nodeName, bcos::protocol::BlockNumber _blockNumber,
+    std::function<void(Error::Ptr)> _callback)
 {
     auto ss = m_wsService->sessions();
     for (const auto& s : ss)

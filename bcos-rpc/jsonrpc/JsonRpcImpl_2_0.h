@@ -407,6 +407,12 @@ public:
         m_ledgerInterface = _ledgerInterface;
     }
 
+    bcos::scheduler::SchedulerInterface::Ptr scheduler() const { return m_scheduler; }
+    void setScheduler(bcos::scheduler::SchedulerInterface::Ptr scheduler)
+    {
+        m_scheduler = std::move(scheduler);
+    }
+
     bcos::txpool::TxPoolInterface::Ptr txPoolInterface() const { return m_txPoolInterface; }
     void setTxPoolInterface(bcos::txpool::TxPoolInterface::Ptr _txPoolInterface)
     {

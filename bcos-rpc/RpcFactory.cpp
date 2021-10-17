@@ -55,10 +55,10 @@ void RpcFactory::checkParams()
                                   "RpcFactory::checkParams ledgerInterface is uninitialized"));
     }
 
-    if (!m_executorInterface)
+    if (!m_scheduler)
     {
         BOOST_THROW_EXCEPTION(InvalidParameter() << errinfo_comment(
-                                  "RpcFactory::checkParams executorInterface is uninitialized"));
+                                  "RpcFactory::checkParams schedulerInterface is uninitialized"));
     }
 
     if (!m_txPoolInterface)
@@ -200,7 +200,7 @@ bcos::rpc::JsonRpcImpl_2_0::Ptr RpcFactory::buildJsonRpc(
     jsonRpcInterface->setNodeInfo(_nodeInfo);
     jsonRpcInterface->setLedger(m_ledgerInterface);
     jsonRpcInterface->setTxPoolInterface(m_txPoolInterface);
-    jsonRpcInterface->setExecutorInterface(m_executorInterface);
+    jsonRpcInterface->setScheduler(m_scheduler);
     jsonRpcInterface->setConsensusInterface(m_consensusInterface);
     jsonRpcInterface->setBlockSyncInterface(m_blockSyncInterface);
     jsonRpcInterface->setTransactionFactory(m_transactionFactory);

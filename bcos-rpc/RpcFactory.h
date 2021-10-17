@@ -23,7 +23,7 @@
 #include <bcos-boostssl/websocket/WsConfig.h>
 #include <bcos-framework/interfaces/consensus/ConsensusInterface.h>
 #include <bcos-framework/interfaces/crypto/KeyFactory.h>
-#include <bcos-framework/interfaces/executor/ExecutorInterface.h>
+#include <bcos-framework/interfaces/dispatcher/SchedulerInterface.h>
 #include <bcos-framework/interfaces/front/FrontServiceInterface.h>
 #include <bcos-framework/interfaces/gateway/GatewayInterface.h>
 #include <bcos-framework/interfaces/ledger/LedgerInterface.h>
@@ -87,13 +87,11 @@ public:
         m_ledgerInterface = _ledgerInterface;
     }
 
-    std::shared_ptr<bcos::executor::ExecutorInterface> executorInterface() const
+    bcos::scheduler::SchedulerInterface::Ptr scheduler() const { return m_scheduler; }
+
+    void setScheduler(bcos::scheduler::SchedulerInterface::Ptr scheduler)
     {
-        return m_executorInterface;
-    }
-    void setExecutorInterface(std::shared_ptr<bcos::executor::ExecutorInterface> _executorInterface)
-    {
-        m_executorInterface = _executorInterface;
+        m_scheduler = std::move(scheduler);
     }
 
     bcos::txpool::TxPoolInterface::Ptr txPoolInterface() const { return m_txPoolInterface; }
@@ -153,7 +151,7 @@ public:
 private:
     std::shared_ptr<bcos::crypto::KeyFactory> m_keyFactory;
     bcos::ledger::LedgerInterface::Ptr m_ledgerInterface;
-    std::shared_ptr<bcos::executor::ExecutorInterface> m_executorInterface;
+    bcos::scheduler::SchedulerInterface::Ptr m_scheduler;
     bcos::txpool::TxPoolInterface::Ptr m_txPoolInterface;
     bcos::consensus::ConsensusInterface::Ptr m_consensusInterface;
     bcos::sync::BlockSyncInterface::Ptr m_blockSyncInterface;
