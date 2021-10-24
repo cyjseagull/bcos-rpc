@@ -76,7 +76,7 @@ public:
      * @param _data: the message data
      * @return void
      */
-    virtual void asyncNotifyAmopMessage(bcos::crypto::NodeIDPtr _nodeID, const std::string& _id,
+    void asyncNotifyAmopMessage(bcos::crypto::NodeIDPtr _nodeID, const std::string& _id,
         bcos::bytesConstRef _data, std::function<void(Error::Ptr _error)> _onRecv) override;
     /**
      * @brief: async receive nodeIDs from front service
@@ -84,7 +84,7 @@ public:
      * @param _callback: callback
      * @return void
      */
-    virtual void asyncNotifyAmopNodeIDs(std::shared_ptr<const bcos::crypto::NodeIDs> _nodeIDs,
+    void asyncNotifyAmopNodeIDs(std::shared_ptr<const bcos::crypto::NodeIDs> _nodeIDs,
         std::function<void(bcos::Error::Ptr _error)> _callback) override;
 
     void asyncNotifyGroupInfo(bcos::group::GroupInfo::Ptr _groupInfo,

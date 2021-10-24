@@ -22,10 +22,3 @@ hunter_config(bcos-boostssl
 	URL "https://${URL_BASE}/FISCO-BCOS/bcos-boostssl/archive/1b972a6734ef49ac4ca56184d31fe54a08a97e82.tar.gz"
 	SHA1 6d35d940eacb7f41db779fb8182cbebf50535574
 )
-
-hunter_config(bcos-ledger
-    VERSION 3.0.0-local
-    URL https://${URL_BASE}/FISCO-BCOS/bcos-ledger/archive/bfc54bbc1af88e010827eb95ae96c0b9e3eec2b7.tar.gz
-    SHA1 6383cc6430871ed11225355f3ecab8518b59e043
-    CMAKE_ARGS URL_BASE=${URL_BASE} HUNTER_KEEP_PACKAGE_SOURCES=ON
-)
