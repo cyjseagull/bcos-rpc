@@ -33,6 +33,7 @@
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <memory>
+#include <string>
 #include <utility>
 
 using namespace bcos;
@@ -139,6 +140,14 @@ bcos::amop::AMOP::Ptr RpcFactory::buildAMOP(std::shared_ptr<boostssl::ws::WsServ
             if (amop)
             {
                 amop->onRecvAMOPBroadcast(_msg, _session);
+            }
+        });
+
+    _wsService->registerDisconnectHandler(
+        [topicManager](std::shared_ptr<boostssl::ws::WsSession> _session) {
+            if (_session)
+            {
+                topicManager->removeTopicsByClient(_session->endPoint());
             }
         });
 

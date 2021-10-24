@@ -160,6 +160,9 @@ jobs:
           path: |
             /home/runner/.hunter
             /github/home/.hunter
+            /home/runner/.hunter/_Base/Download/
+            /github/home/.hunter/_Base/Download/
+            deps/src
             ccache
           key: hunter-centos-v2-notest-${{ runner.temp }}-${{ github.base_ref }}-${{ hashFiles('.github/workflows/workflow.yml') }}
           restore-keys: |
@@ -174,6 +177,6 @@ jobs:
         run: |
           source /opt/rh/devtoolset-7/enable
           mkdir -p build && cd build
-          cmake3 .. -DTESTS=ON
+          cmake3 .. -DTESTS=ON -DHUNTER_STATUS_DEBUG=ON
           make -j2
           CTEST_OUTPUT_ON_FAILURE=TRUE make test
