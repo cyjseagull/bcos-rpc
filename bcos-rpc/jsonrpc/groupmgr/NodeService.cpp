@@ -32,10 +32,10 @@ using namespace bcos::crypto;
 using namespace bcos::group;
 using namespace bcos::protocol;
 
-NodeService::Ptr NodeServiceFactory::buildNodeService(std::string const& _chainID,
-    std::string const& _groupID, bcos::group::ChainNodeInfo::Ptr _nodeInfo)
+NodeService::Ptr NodeServiceFactory::buildNodeService(
+    std::string const&, std::string const&, bcos::group::ChainNodeInfo::Ptr _nodeInfo)
 {
-    auto appName = getApplicationName(_chainID, _groupID, _nodeInfo->nodeName());
+    auto appName = _nodeInfo->nodeName();
     // create cryptoSuite
     auto const& type = _nodeInfo->nodeType();
     CryptoSuite::Ptr cryptoSuite = nullptr;
@@ -48,25 +48,44 @@ NodeService::Ptr NodeServiceFactory::buildNodeService(std::string const& _chainI
         cryptoSuite = createCryptoSuite();
     }
     auto blockFactory = createBlockFactory(cryptoSuite);
-    auto ledgerClient =
-        createServiceClient<bcostars::LedgerServiceClient, bcostars::LedgerServicePrx>(
-            appName, LEDGER_SERVICE_NAME, blockFactory);
+    auto ledgerClient = createServicePrx<bcostars::LedgerServiceClient, bcostars::LedgerServicePrx>(
+        LEDGER, _nodeInfo, blockFactory);
+    if (!ledgerClient.first)
+    {
+        return nullptr;
+    }
     auto schedulerClient =
-        createServiceClient<bcostars::SchedulerServiceClient, bcostars::SchedulerServicePrx>(
-            appName, SCHEDULER_SERVICE_NAME, cryptoSuite);
-
+        createServicePrx<bcostars::SchedulerServiceClient, bcostars::SchedulerServicePrx>(
+            SCHEDULER, _nodeInfo, cryptoSuite);
+    if (!schedulerClient.first)
+    {
+        return nullptr;
+    }
     // create txpool client
-    auto txpoolClient =
-        createServiceClient<bcostars::TxPoolServiceClient, bcostars::TxPoolServicePrx>(
-            appName, TXPOOL_SERVICE_NAME, cryptoSuite, blockFactory);
+    auto txpoolClient = createServicePrx<bcostars::TxPoolServiceClient, bcostars::TxPoolServicePrx>(
+        TXPOOL, _nodeInfo, cryptoSuite, blockFactory);
+    if (!txpoolClient.first)
+    {
+        return nullptr;
+    }
+
     // create consensus client
-    auto consensusClient =
-        createServiceClient<bcostars::PBFTServiceClient, bcostars::PBFTServicePrx>(
-            appName, CONSENSUS_SERVICE_NAME);
+    auto consensusClient = createServicePrx<bcostars::PBFTServiceClient, bcostars::PBFTServicePrx>(
+        CONSENSUS, _nodeInfo);
+    if (!consensusClient.first)
+    {
+        return nullptr;
+    }
     // create sync client
-    auto syncClient =
-        createServiceClient<bcostars::BlockSyncServiceClient, bcostars::PBFTServicePrx>(
-            appName, CONSENSUS_SERVICE_NAME);
-    return std::make_shared<NodeService>(
-        ledgerClient, schedulerClient, txpoolClient, consensusClient, syncClient, blockFactory);
+    auto syncClient = createServicePrx<bcostars::BlockSyncServiceClient, bcostars::PBFTServicePrx>(
+        CONSENSUS, _nodeInfo);
+    if (!syncClient.first)
+    {
+        return nullptr;
+    }
+    auto nodeService = std::make_shared<NodeService>(ledgerClient.first, schedulerClient.first,
+        txpoolClient.first, consensusClient.first, syncClient.first, blockFactory);
+
+    nodeService->setLedgerPrx(ledgerClient.second);
+    return nodeService;
 }

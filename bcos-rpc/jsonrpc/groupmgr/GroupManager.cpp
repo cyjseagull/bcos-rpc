@@ -28,9 +28,14 @@ using namespace bcos::protocol;
 void GroupManager::updateGroupInfo(bcos::group::GroupInfo::Ptr _groupInfo)
 {
     WriteGuard l(x_nodeServiceList);
-    m_groupInfos[_groupInfo->groupID()] = _groupInfo;
-    auto nodeInfos = _groupInfo->nodeInfos();
     auto const& groupID = _groupInfo->groupID();
+    if (!m_groupInfos.count(groupID))
+    {
+        m_groupInfos[groupID] = _groupInfo;
+        GROUP_LOG(INFO) << LOG_DESC("updateGroupInfo") << printGroupInfo(_groupInfo);
+        return;
+    }
+    auto nodeInfos = _groupInfo->nodeInfos();
     for (auto const& it : nodeInfos)
     {
         updateNodeServiceWithoutLock(groupID, it.second);
@@ -40,36 +45,139 @@ void GroupManager::updateGroupInfo(bcos::group::GroupInfo::Ptr _groupInfo)
 void GroupManager::updateNodeServiceWithoutLock(
     std::string const& _groupID, ChainNodeInfo::Ptr _nodeInfo)
 {
-    auto nodeAppName = getApplicationName(m_chainID, _groupID, _nodeInfo->nodeName());
-    // the node has not been started
-    if (_nodeInfo->status() != GroupStatus::Started)
-    {
-        if (m_nodeServiceList.count(nodeAppName))
-        {
-            m_nodeServiceList.erase(nodeAppName);
-            BCOS_LOG(INFO) << LOG_DESC("Erase the node service for the node not started")
-                           << printNodeInfo(_nodeInfo);
-        }
-        return;
-    }
+    auto nodeAppName = _nodeInfo->nodeName();
     // a started node
     if (!m_nodeServiceList.count(nodeAppName))
     {
         auto nodeService = m_nodeServiceFactory->buildNodeService(m_chainID, _groupID, _nodeInfo);
+        if (!nodeService)
+        {
+            return;
+        }
         m_nodeServiceList[nodeAppName] = nodeService;
+        auto groupInfo = m_groupInfos[_groupID];
+        groupInfo->appendNodeInfo(_nodeInfo);
         BCOS_LOG(INFO) << LOG_DESC("buildNodeService for the started new node")
-                       << printNodeInfo(_nodeInfo);
+                       << printNodeInfo(_nodeInfo) << printGroupInfo(groupInfo);
     }
+}
+
+NodeService::Ptr GroupManager::selectNode(std::string const& _groupID) const
+{
+    auto nodeName = selectNodeByBlockNumber(_groupID);
+    if (nodeName.size() == 0)
+    {
+        return selectNodeRandomly(_groupID);
+    }
+    return queryNodeService(nodeName);
+}
+std::string GroupManager::selectNodeByBlockNumber(std::string const& _groupID) const
+{
+    ReadGuard l(x_groupBlockInfos);
+    if (!m_nodesWithLatestBlockNumber.count(_groupID))
+    {
+        return "";
+    }
+    srand(utcTime());
+    auto const& nodesList = m_nodesWithLatestBlockNumber.at(_groupID);
+    auto selectNodeIndex = rand() % nodesList.size();
+    auto it = nodesList.begin();
+    std::advance(it, selectNodeIndex);
+    return *it;
+}
+
+NodeService::Ptr GroupManager::selectNodeRandomly(std::string const& _groupID) const
+{
+    ReadGuard l(x_nodeServiceList);
+    if (!m_groupInfos.count(_groupID))
+    {
+        return nullptr;
+    }
+    auto const& groupInfo = m_groupInfos.at(_groupID);
+    auto const& nodeInfos = groupInfo->nodeInfos();
+    for (auto const& it : nodeInfos)
+    {
+        auto const& node = it.second;
+        if (m_nodeServiceList.count(node->nodeName()))
+        {
+            return m_nodeServiceList.at(node->nodeName());
+        }
+    }
+    return nullptr;
+}
+
+NodeService::Ptr GroupManager::queryNodeService(std::string const& _nodeName) const
+{
+    ReadGuard l(x_nodeServiceList);
+    if (m_nodeServiceList.count(_nodeName))
+    {
+        return m_nodeServiceList.at(_nodeName);
+    }
+    return nullptr;
 }
 
 NodeService::Ptr GroupManager::getNodeService(
     std::string const& _groupID, std::string const& _nodeName) const
 {
-    auto appName = getApplicationName(m_chainID, _groupID, _nodeName);
-    ReadGuard l(x_nodeServiceList);
-    if (m_nodeServiceList.count(appName))
+    if (_nodeName.size() > 0)
     {
-        return m_nodeServiceList.at(appName);
+        return queryNodeService(_nodeName);
     }
-    return nullptr;
+    return selectNode(_groupID);
+}
+
+void GroupManager::updateGroupStatus()
+{
+    m_groupStatusUpdater->restart();
+    std::vector<std::string> unreachableNodes;
+    {
+        UpgradableGuard l(x_nodeServiceList);
+        for (auto const& it : m_groupInfos)
+        {
+            bool groupInfoUpdated = false;
+            auto groupInfo = it.second;
+            auto const& groupNodeList = groupInfo->nodeInfos();
+            for (auto const& nodeInfo : groupNodeList)
+            {
+                if (!m_nodeServiceList.count(nodeInfo.first))
+                {
+                    groupInfo->removeNodeInfo(nodeInfo.second);
+                    groupInfoUpdated = true;
+                    unreachableNodes.emplace_back(nodeInfo.first);
+                    continue;
+                }
+                auto nodeService = m_nodeServiceList.at(nodeInfo.first);
+                if (nodeService->unreachable())
+                {
+                    GROUP_LOG(INFO)
+                        << LOG_DESC("erase the node service for unreachable")
+                        << LOG_KV("group", groupInfo->groupID()) << LOG_KV("node", nodeInfo.first);
+                    groupInfo->removeNodeInfo(nodeInfo.second);
+                    groupInfoUpdated = true;
+                    unreachableNodes.emplace_back(nodeInfo.first);
+                }
+            }
+            // notify the updated groupInfo to the sdk
+            if (m_groupInfoNotifier && groupInfoUpdated)
+            {
+                m_groupInfoNotifier(groupInfo);
+            }
+        }
+        if (unreachableNodes.size() == 0)
+        {
+            return;
+        }
+        // update m_nodeServiceList
+        UpgradeGuard ul(l);
+        for (auto const& node : unreachableNodes)
+        {
+            m_nodeServiceList.erase(node);
+        }
+    }
+    WriteGuard l(x_groupBlockInfos);
+    for (auto const& node : unreachableNodes)
+    {
+        m_groupBlockInfos.erase(node);
+        m_nodesWithLatestBlockNumber.erase(node);
+    }
 }

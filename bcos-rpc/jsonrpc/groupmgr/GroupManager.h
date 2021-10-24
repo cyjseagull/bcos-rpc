@@ -20,8 +20,7 @@
  */
 #pragma once
 #include "NodeService.h"
-#include <bcos-framework/interfaces/multigroup/GroupInfoFactory.h>
-#include <bcos-framework/interfaces/multigroup/GroupManagerInterface.h>
+#include <bcos-framework/libutilities/Timer.h>
 namespace bcos
 {
 namespace rpc
@@ -30,16 +29,14 @@ class GroupManager
 {
 public:
     using Ptr = std::shared_ptr<GroupManager>;
-    GroupManager(std::string const& _chainID, NodeServiceFactory::Ptr _nodeServiceFactory,
-        bcos::group::GroupManagerInterface::Ptr _groupMgr,
-        bcos::group::GroupInfoFactory::Ptr _groupInfoFactory,
-        bcos::group::ChainNodeInfoFactory::Ptr _chainNodeInfoFactory)
-      : m_chainID(_chainID),
-        m_nodeServiceFactory(_nodeServiceFactory),
-        m_groupMgrClient(_groupMgr),
-        m_groupInfoFactory(_groupInfoFactory),
-        m_chainNodeInfoFactory(_chainNodeInfoFactory)
-    {}
+    GroupManager(std::string const& _chainID, NodeServiceFactory::Ptr _nodeServiceFactory)
+      : m_chainID(_chainID), m_nodeServiceFactory(_nodeServiceFactory)
+    {
+        m_groupStatusUpdater = std::make_shared<Timer>(1000);
+        m_groupStatusUpdater->start();
+        m_groupStatusUpdater->registerTimeoutHandler(
+            boost::bind(&GroupManager::updateGroupStatus, this));
+    }
     virtual ~GroupManager() {}
 
     virtual void updateGroupInfo(bcos::group::GroupInfo::Ptr _groupInfo);
@@ -71,30 +68,88 @@ public:
         return groupInfo->nodeInfo(_nodeName);
     }
 
-    bcos::group::GroupManagerInterface::Ptr groupMgrClient() { return m_groupMgrClient; }
-    bcos::group::GroupInfoFactory::Ptr groupInfoFactory() { return m_groupInfoFactory; };
-    bcos::group::ChainNodeInfoFactory::Ptr chainNodeInfoFactory()
+    std::set<std::string> groupList()
     {
-        return m_chainNodeInfoFactory;
-    };
+        ReadGuard l(x_nodeServiceList);
+        std::set<std::string> groupList;
+        for (auto const& it : m_groupInfos)
+        {
+            groupList.insert(it.first);
+        }
+        return groupList;
+    }
+
+    virtual void updateGroupBlockInfo(std::string const& _groupID, std::string const& _nodeName,
+        bcos::protocol::BlockNumber _blockNumber)
+    {
+        UpgradableGuard l(x_groupBlockInfos);
+        if (m_groupBlockInfos.count(_groupID))
+        {
+            if (m_groupBlockInfos[_groupID] > _blockNumber)
+            {
+                return;
+            }
+            if (m_groupBlockInfos[_groupID] == _blockNumber &&
+                m_nodesWithLatestBlockNumber.count(_groupID) &&
+                m_nodesWithLatestBlockNumber[_groupID].count(_nodeName))
+            {
+                return;
+            }
+        }
+        UpgradeGuard ul(l);
+        bcos::protocol::BlockNumber oldBlockNumber = 0;
+        if (m_groupBlockInfos.count(_groupID))
+        {
+            oldBlockNumber = m_groupBlockInfos[_groupID];
+        }
+        if (!m_nodesWithLatestBlockNumber.count(_groupID))
+        {
+            m_nodesWithLatestBlockNumber[_groupID] = std::set<std::string>();
+        }
+        if (oldBlockNumber < _blockNumber)
+        {
+            m_groupBlockInfos[_groupID] = _blockNumber;
+            m_nodesWithLatestBlockNumber[_groupID].clear();
+        }
+        (m_nodesWithLatestBlockNumber[_groupID]).insert(_nodeName);
+        BCOS_LOG(DEBUG) << LOG_DESC("updateGroupBlockInfo for receive block notify")
+                        << LOG_KV("group", _groupID) << LOG_KV("node", _nodeName)
+                        << LOG_KV("block", _blockNumber);
+    }
+
+    void registerGroupInfoNotifier(std::function<void(bcos::group::GroupInfo::Ptr)> _callback)
+    {
+        m_groupInfoNotifier = _callback;
+    }
 
 protected:
+    virtual void updateGroupStatus();
+
     void updateNodeServiceWithoutLock(
         std::string const& _groupID, bcos::group::ChainNodeInfo::Ptr _nodeInfo);
+
+    virtual NodeService::Ptr selectNode(std::string const& _groupID) const;
+    virtual std::string selectNodeByBlockNumber(std::string const& _groupID) const;
+    virtual NodeService::Ptr selectNodeRandomly(std::string const& _groupID) const;
+    virtual NodeService::Ptr queryNodeService(std::string const& _nodeName) const;
 
 private:
     std::string m_chainID;
     NodeServiceFactory::Ptr m_nodeServiceFactory;
-    bcos::group::GroupManagerInterface::Ptr m_groupMgrClient;
-    bcos::group::GroupInfoFactory::Ptr m_groupInfoFactory;
-    bcos::group::ChainNodeInfoFactory::Ptr m_chainNodeInfoFactory;
 
     // map between groupID to groupInfo
     std::map<std::string, bcos::group::GroupInfo::Ptr> m_groupInfos;
 
-    // map between serviceName to NodeService
+    // map between nodeName to NodeService
     std::map<std::string, NodeService::Ptr> m_nodeServiceList;
     mutable SharedMutex x_nodeServiceList;
+
+    std::map<std::string, std::set<std::string>> m_nodesWithLatestBlockNumber;
+    std::map<std::string, bcos::protocol::BlockNumber> m_groupBlockInfos;
+    mutable SharedMutex x_groupBlockInfos;
+
+    std::shared_ptr<Timer> m_groupStatusUpdater;
+    std::function<void(bcos::group::GroupInfo::Ptr)> m_groupInfoNotifier;
 };
 }  // namespace rpc
 }  // namespace bcos
