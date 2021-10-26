@@ -1218,6 +1218,11 @@ void JsonRpcImpl_2_0::notifyTransactionResult(
     decltype(m_txHash2Callback)::const_accessor it;
     m_txHash2Callback.find(it, txHash);
 
+    if (it.empty())
+    {
+        RPC_IMPL_LOG(ERROR) << "Notify transaction: " << txHash.hex() << " not found!";
+        return;
+    }
     auto& callback = it->second;
     callback(nullptr, std::move(result));
 
