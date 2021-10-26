@@ -594,6 +594,8 @@ void JsonRpcImpl_2_0::sendTransaction(std::string const& _groupID, std::string c
             }
         };
 
+    RPC_IMPL_LOG(TRACE) << "Writing tx: " << txHash.hex() << " into hash map";
+
     m_txHash2Callback.emplace(txHash, submitCallback);
     m_txPoolInterface->asyncSubmit(transactionDataPtr, submitCallback);
 
