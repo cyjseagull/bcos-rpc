@@ -570,51 +570,56 @@ void JsonRpcImpl_2_0::sendTransaction(std::string const& _groupID, std::string c
                 return;
             }
 
+            Json::Value jResp;
+            toJsonResp(jResp, hexPreTxHash, _transactionSubmitResult->transactionReceipt());
+            jResp["input"] = "";
+            _respFunc(nullptr, jResp);
+
             // fetch transaction receipt
-            rpc->getTransactionReceipt(_groupID, _nodeName, hexPreTxHash, _requireProof,
-                [_groupID, _nodeName, rpc, _requireProof, hexPreTxHash, _respFunc](
-                    bcos::Error::Ptr _error, Json::Value& jReceipt) {
-                    if (_error && _error->errorCode() != bcos::protocol::CommonError::SUCCESS)
-                    {
-                        RPC_IMPL_LOG(WARNING)
-                            << LOG_BADGE("sendTransaction") << LOG_DESC("getTransactionReceipt")
-                            << LOG_KV("hexPreTxHash", hexPreTxHash)
-                            << LOG_KV("requireProof", _requireProof)
-                            << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
-                            << LOG_KV("errorMessage", _error ? _error->errorMessage() : "success");
-                        _respFunc(_error, jReceipt);
-                        return;
-                    }
+            // rpc->getTransactionReceipt(_groupID, _nodeName, hexPreTxHash, _requireProof,
+            //     [_groupID, _nodeName, rpc, _requireProof, hexPreTxHash, _respFunc](
+            //         bcos::Error::Ptr _error, Json::Value& jReceipt) {
+            //         if (_error && _error->errorCode() != bcos::protocol::CommonError::SUCCESS)
+            //         {
+            //             RPC_IMPL_LOG(WARNING)
+            //                 << LOG_BADGE("sendTransaction") << LOG_DESC("getTransactionReceipt")
+            //                 << LOG_KV("hexPreTxHash", hexPreTxHash)
+            //                 << LOG_KV("requireProof", _requireProof)
+            //                 << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
+            //                 << LOG_KV("errorMessage", _error ? _error->errorMessage() :
+            //                 "success");
+            //             _respFunc(_error, jReceipt);
+            //             return;
+            //         }
 
-                    // fetch transaction proof
-                    rpc->getTransaction(_groupID, _nodeName, hexPreTxHash, _requireProof,
-                        [jReceipt, hexPreTxHash, _respFunc](
-                            bcos::Error::Ptr _error, Json::Value& _jTx) {
-                            auto jReceiptCopy = jReceipt;
-                            if (_error &&
-                                _error->errorCode() != bcos::protocol::CommonError::SUCCESS)
-                            {
-                                RPC_IMPL_LOG(WARNING)
-                                    << LOG_BADGE("sendTransaction") << LOG_DESC("getTransaction")
-                                    << LOG_KV("hexPreTxHash", hexPreTxHash)
-                                    << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
-                                    << LOG_KV("errorMessage",
-                                           _error ? _error->errorMessage() : "success");
-                            }
+            // fetch transaction proof
+            // rpc->getTransaction(_groupID, _nodeName, hexPreTxHash, _requireProof,
+            //     [jReceipt = std::move(jResp), hexPreTxHash, _respFunc](bcos::Error::Ptr _error,
+            //     Json::Value& _jTx) {
+            //         auto jReceiptCopy = jReceipt;
+            //         if (_error && _error->errorCode() != bcos::protocol::CommonError::SUCCESS)
+            //         {
+            //             RPC_IMPL_LOG(WARNING)
+            //                 << LOG_BADGE("sendTransaction") << LOG_DESC("getTransaction")
+            //                 << LOG_KV("hexPreTxHash", hexPreTxHash)
+            //                 << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
+            //                 << LOG_KV("errorMessage", _error ? _error->errorMessage() :
+            //                 "success");
+            //         }
 
-                            if (_jTx.isMember("transactionProof"))
-                            {
-                                jReceiptCopy["transactionProof"] = _jTx["transactionProof"];
-                            }
+            //         if (_jTx.isMember("transactionProof"))
+            //         {
+            //             jReceiptCopy["transactionProof"] = _jTx["transactionProof"];
+            //         }
 
-                            if (_jTx.isMember("input"))
-                            {
-                                jReceiptCopy["input"] = _jTx["input"];
-                            }
+            //         if (_jTx.isMember("input"))
+            //         {
+            //             jReceiptCopy["input"] = _jTx["input"];
+            //         }
 
-                            _respFunc(nullptr, jReceiptCopy);
-                        });
-                });
+            //         _respFunc(nullptr, jReceiptCopy);
+            //     });
+            // });
         });
 }
 
