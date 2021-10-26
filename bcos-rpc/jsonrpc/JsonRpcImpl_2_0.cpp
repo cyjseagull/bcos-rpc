@@ -542,7 +542,8 @@ void JsonRpcImpl_2_0::sendTransaction(std::string const& _groupID, std::string c
     auto self = std::weak_ptr<JsonRpcImpl_2_0>(shared_from_this());
     auto transactionDataPtr = decodeData(_data);
 
-    auto txHash = m_hash->hash(*transactionDataPtr);  // FIXME:
+    auto tx = m_transactionFactory->createTransaction(*transactionDataPtr);
+    auto txHash = tx->hash();  // FIXME: try pass tx to backend?
 
     auto submitCallback =
         [_groupID, _requireProof, transactionDataPtr, respFunc = std::move(_respFunc), txHash,
@@ -1218,9 +1219,9 @@ void JsonRpcImpl_2_0::notifyTransactionResult(
     bcos::crypto::HashType txHash, bcos::protocol::TransactionSubmitResult::Ptr result)
 {
     decltype(m_txHash2Callback)::const_accessor it;
-    m_txHash2Callback.find(it, txHash);
+    auto found = m_txHash2Callback.find(it, txHash);
 
-    if (it.empty())
+    if (!found)
     {
         RPC_IMPL_LOG(ERROR) << "Notify transaction: " << txHash.hex() << " not found!";
         return;
