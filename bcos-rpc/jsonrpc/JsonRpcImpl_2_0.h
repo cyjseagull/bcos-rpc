@@ -28,6 +28,7 @@
 #include <bcos-framework/interfaces/txpool/TxPoolInterface.h>
 #include <bcos-rpc/jsonrpc/JsonRpcInterface.h>
 #include <json/json.h>
+#include <tbb/concurrent_hash_map.h>
 #include <boost/core/ignore_unused.hpp>
 #include <unordered_map>
 
@@ -453,6 +454,11 @@ public:
     void setNodeInfo(const NodeInfo& _nodeInfo) { m_nodeInfo = _nodeInfo; }
     NodeInfo nodeInfo() const { return m_nodeInfo; }
 
+    void notifyTransactionResult(
+        bcos::crypto::HashType txHash, bcos::protocol::TransactionSubmitResult::Ptr result);
+
+    void setHashImpl(bcos::crypto::Hash::Ptr hash) { m_hash = std::move(hash); }
+
 private:
     std::unordered_map<std::string, std::function<void(Json::Value, RespFunc _respFunc)>>
         m_methodToFunc;
@@ -465,6 +471,22 @@ private:
     bcos::gateway::GatewayInterface::Ptr m_gatewayInterface;
     bcos::protocol::TransactionFactory::Ptr m_transactionFactory;
     NodeInfo m_nodeInfo;
+
+    struct TxHasher
+    {
+        size_t hash(const bcos::crypto::HashType& hash) const { return hasher(hash); }
+
+        bool equal(const bcos::crypto::HashType& lhs, const bcos::crypto::HashType& rhs) const
+        {
+            return lhs == rhs;
+        }
+
+        std::hash<bcos::crypto::HashType> hasher;
+    };
+
+    tbb::concurrent_hash_map<bcos::crypto::HashType, bcos::protocol::TxSubmitCallback, TxHasher>
+        m_txHash2Callback;
+    bcos::crypto::Hash::Ptr m_hash;
 };
 
 }  // namespace rpc

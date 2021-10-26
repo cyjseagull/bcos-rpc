@@ -63,6 +63,10 @@ public:
         bcos::protocol::BlockNumber _blockNumber,
         std::function<void(Error::Ptr)> _callback) override;
 
+    void asyncNotifyTransactionResult(const std::string_view& groupID,
+        bcos::crypto::HashType txHash,
+        bcos::protocol::TransactionSubmitResult::Ptr result) override;
+
     /**
      * @brief: async receive message from front service
      * @param _nodeID: the message sender nodeID

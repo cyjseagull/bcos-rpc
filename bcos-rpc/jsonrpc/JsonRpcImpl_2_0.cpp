@@ -541,86 +541,144 @@ void JsonRpcImpl_2_0::sendTransaction(std::string const& _groupID, std::string c
 
     auto self = std::weak_ptr<JsonRpcImpl_2_0>(shared_from_this());
     auto transactionDataPtr = decodeData(_data);
-    m_txPoolInterface->asyncSubmit(transactionDataPtr,
-        [_groupID, _nodeName, _requireProof, _data, _respFunc, self](Error::Ptr _error,
+
+    auto txHash = m_hash->hash(*transactionDataPtr);  // FIXME:
+
+    auto submitCallback =
+        [_groupID, _requireProof, transactionDataPtr, respFunc = std::move(_respFunc), txHash,
+            self](Error::Ptr _error,
             bcos::protocol::TransactionSubmitResult::Ptr _transactionSubmitResult) {
-            if (_error && _error->errorCode() != bcos::protocol::CommonError::SUCCESS)
-            {
-                RPC_IMPL_LOG(ERROR)
-                    << LOG_BADGE("sendTransaction") << LOG_KV("data", _data)
-                    << LOG_KV("requireProof", _requireProof)
-                    << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
-                    << LOG_KV("errorMessage", _error ? _error->errorMessage() : "success");
-                Json::Value jResp;
-                _respFunc(_error, jResp);
-                return;
-            }
-
-            // get transaction receipt
-            auto txHash = _transactionSubmitResult->txHash();
-            auto hexPreTxHash = txHash.hexPrefixed();
-
-            RPC_IMPL_LOG(TRACE) << LOG_BADGE("sendTransaction") << LOG_DESC("getTransactionReceipt")
-                                << LOG_KV("hexPreTxHash", hexPreTxHash)
-                                << LOG_KV("requireProof", _requireProof);
-
             auto rpc = self.lock();
             if (!rpc)
             {
                 return;
             }
 
-            Json::Value jResp;
-            toJsonResp(jResp, hexPreTxHash, _transactionSubmitResult->transactionReceipt());
-            jResp["input"] = "";
-            _respFunc(nullptr, jResp);
+            if (_error && _error->errorCode() != bcos::protocol::CommonError::SUCCESS)
+            {
+                // Remove this callback from hash map
+                decltype(m_txHash2Callback)::const_accessor it;
+                rpc->m_txHash2Callback.find(it, txHash);
+                if (!it.empty())
+                {
+                    rpc->m_txHash2Callback.erase(it);
+                }
 
-            // fetch transaction receipt
-            // rpc->getTransactionReceipt(_groupID, _nodeName, hexPreTxHash, _requireProof,
-            //     [_groupID, _nodeName, rpc, _requireProof, hexPreTxHash, _respFunc](
-            //         bcos::Error::Ptr _error, Json::Value& jReceipt) {
-            //         if (_error && _error->errorCode() != bcos::protocol::CommonError::SUCCESS)
-            //         {
-            //             RPC_IMPL_LOG(WARNING)
-            //                 << LOG_BADGE("sendTransaction") << LOG_DESC("getTransactionReceipt")
-            //                 << LOG_KV("hexPreTxHash", hexPreTxHash)
-            //                 << LOG_KV("requireProof", _requireProof)
-            //                 << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
-            //                 << LOG_KV("errorMessage", _error ? _error->errorMessage() :
-            //                 "success");
-            //             _respFunc(_error, jReceipt);
-            //             return;
-            //         }
+                RPC_IMPL_LOG(ERROR)
+                    << LOG_BADGE("sendTransaction")
+                    << LOG_KV("data", base64Encode(ref(*transactionDataPtr)))
+                    << LOG_KV("requireProof", _requireProof)
+                    << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
+                    << LOG_KV("errorMessage", _error ? _error->errorMessage() : "success");
+                Json::Value jResp;
+                respFunc(_error, jResp);
 
-            // fetch transaction proof
-            // rpc->getTransaction(_groupID, _nodeName, hexPreTxHash, _requireProof,
-            //     [jReceipt = std::move(jResp), hexPreTxHash, _respFunc](bcos::Error::Ptr _error,
-            //     Json::Value& _jTx) {
-            //         auto jReceiptCopy = jReceipt;
-            //         if (_error && _error->errorCode() != bcos::protocol::CommonError::SUCCESS)
-            //         {
-            //             RPC_IMPL_LOG(WARNING)
-            //                 << LOG_BADGE("sendTransaction") << LOG_DESC("getTransaction")
-            //                 << LOG_KV("hexPreTxHash", hexPreTxHash)
-            //                 << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
-            //                 << LOG_KV("errorMessage", _error ? _error->errorMessage() :
-            //                 "success");
-            //         }
+                return;
+            }
 
-            //         if (_jTx.isMember("transactionProof"))
-            //         {
-            //             jReceiptCopy["transactionProof"] = _jTx["transactionProof"];
-            //         }
+            if (_transactionSubmitResult->transactionReceipt())
+            {
+                // get transaction receipt
+                auto txHash = _transactionSubmitResult->txHash();
+                auto hexPreTxHash = txHash.hexPrefixed();
 
-            //         if (_jTx.isMember("input"))
-            //         {
-            //             jReceiptCopy["input"] = _jTx["input"];
-            //         }
+                RPC_IMPL_LOG(TRACE)
+                    << LOG_BADGE("sendTransaction") << LOG_DESC("getTransactionReceipt")
+                    << LOG_KV("hexPreTxHash", hexPreTxHash)
+                    << LOG_KV("requireProof", _requireProof);
 
-            //         _respFunc(nullptr, jReceiptCopy);
-            //     });
-            // });
-        });
+                Json::Value jResp;
+                toJsonResp(jResp, hexPreTxHash, _transactionSubmitResult->transactionReceipt());
+                jResp["input"] = "";  // TODO: add input
+                respFunc(nullptr, jResp);
+            }
+        };
+
+    m_txHash2Callback.emplace(txHash, submitCallback);
+    m_txPoolInterface->asyncSubmit(transactionDataPtr, submitCallback);
+
+    // [_groupID, _nodeName, _requireProof, _data, _respFunc, self](Error::Ptr _error,
+    //     bcos::protocol::TransactionSubmitResult::Ptr _transactionSubmitResult) {
+    //     if (_error && _error->errorCode() != bcos::protocol::CommonError::SUCCESS)
+    //     {
+    //         RPC_IMPL_LOG(ERROR)
+    //             << LOG_BADGE("sendTransaction") << LOG_KV("data", _data)
+    //             << LOG_KV("requireProof", _requireProof)
+    //             << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
+    //             << LOG_KV("errorMessage", _error ? _error->errorMessage() : "success");
+    //         Json::Value jResp;
+    //         _respFunc(_error, jResp);
+    //         return;
+    //     }
+
+    //     // get transaction receipt
+    //     auto txHash = _transactionSubmitResult->txHash();
+    //     auto hexPreTxHash = txHash.hexPrefixed();
+
+    //     RPC_IMPL_LOG(TRACE) << LOG_BADGE("sendTransaction") << LOG_DESC("getTransactionReceipt")
+    //                         << LOG_KV("hexPreTxHash", hexPreTxHash)
+    //                         << LOG_KV("requireProof", _requireProof);
+
+    //     auto rpc = self.lock();
+    //     if (!rpc)
+    //     {
+    //         return;
+    //     }
+
+    //     Json::Value jResp;
+    //     toJsonResp(jResp, hexPreTxHash, _transactionSubmitResult->transactionReceipt());
+    //     jResp["input"] = "";
+    //     _respFunc(nullptr, jResp);
+
+    // fetch transaction receipt
+    // rpc->getTransactionReceipt(_groupID, _nodeName, hexPreTxHash, _requireProof,
+    //     [_groupID, _nodeName, rpc, _requireProof, hexPreTxHash, _respFunc](
+    //         bcos::Error::Ptr _error, Json::Value& jReceipt) {
+    //         if (_error && _error->errorCode() !=
+    //         bcos::protocol::CommonError::SUCCESS)
+    //         {
+    //             RPC_IMPL_LOG(WARNING)
+    //                 << LOG_BADGE("sendTransaction") <<
+    //                 LOG_DESC("getTransactionReceipt")
+    //                 << LOG_KV("hexPreTxHash", hexPreTxHash)
+    //                 << LOG_KV("requireProof", _requireProof)
+    //                 << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
+    //                 << LOG_KV("errorMessage", _error ? _error->errorMessage() :
+    //                 "success");
+    //             _respFunc(_error, jReceipt);
+    //             return;
+    //         }
+
+    // fetch transaction proof
+    // rpc->getTransaction(_groupID, _nodeName, hexPreTxHash, _requireProof,
+    //     [jReceipt = std::move(jResp), hexPreTxHash, _respFunc](bcos::Error::Ptr
+    //     _error, Json::Value& _jTx) {
+    //         auto jReceiptCopy = jReceipt;
+    //         if (_error && _error->errorCode() !=
+    //         bcos::protocol::CommonError::SUCCESS)
+    //         {
+    //             RPC_IMPL_LOG(WARNING)
+    //                 << LOG_BADGE("sendTransaction") << LOG_DESC("getTransaction")
+    //                 << LOG_KV("hexPreTxHash", hexPreTxHash)
+    //                 << LOG_KV("errorCode", _error ? _error->errorCode() : 0)
+    //                 << LOG_KV("errorMessage", _error ? _error->errorMessage() :
+    //                 "success");
+    //         }
+
+    //         if (_jTx.isMember("transactionProof"))
+    //         {
+    //             jReceiptCopy["transactionProof"] = _jTx["transactionProof"];
+    //         }
+
+    //         if (_jTx.isMember("input"))
+    //         {
+    //             jReceiptCopy["input"] = _jTx["input"];
+    //         }
+
+    //         _respFunc(nullptr, jReceiptCopy);
+    //     });
+    // });
+    // });
 }
 
 
@@ -1152,4 +1210,16 @@ void JsonRpcImpl_2_0::getNodeInfo(RespFunc _respFunc)
     jResp["wsProtocolVersion"] = 1;
 
     _respFunc(nullptr, jResp);
+}
+
+void JsonRpcImpl_2_0::notifyTransactionResult(
+    bcos::crypto::HashType txHash, bcos::protocol::TransactionSubmitResult::Ptr result)
+{
+    decltype(m_txHash2Callback)::const_accessor it;
+    m_txHash2Callback.find(it, txHash);
+
+    auto& callback = it->second;
+    callback(nullptr, std::move(result));
+
+    m_txHash2Callback.erase(it);
 }
