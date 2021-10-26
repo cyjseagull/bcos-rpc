@@ -76,8 +76,8 @@ void Rpc::asyncNotifyBlockNumber([[maybe_unused]] std::string const& _groupID,
         {
             // TODO: For multiple groups, there should be group params
             // eg: {"blockNumber": 11, "group": "group"}
-            std::string resp = "{\"group\":  " + _groupID +
-                               " ,\"blockNumber\": " + std::to_string(_blockNumber) + "}";
+            std::string resp = "{\"group\":  \"" + _groupID +
+                               "\" ,\"blockNumber\": " + std::to_string(_blockNumber) + "}";
             auto message =
                 m_wsService->messageFactory()->buildMessage(bcos::rpc::MessageType::BLOCK_NOTIFY,
                     std::make_shared<bcos::bytes>(resp.begin(), resp.end()));
