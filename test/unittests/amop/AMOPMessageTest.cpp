@@ -19,8 +19,10 @@
  * @date 2021-06-21
  */
 
+#include <bcos-framework/interfaces/crypto/CommonType.h>
 #include <bcos-framework/testutils/TestPromptFixture.h>
 #include <bcos-rpc/amop/AMOPMessage.h>
+#include <tbb/concurrent_hash_map.h>
 #include <boost/test/unit_test.hpp>
 
 using namespace bcos;
@@ -100,5 +102,29 @@ BOOST_AUTO_TEST_CASE(test_AMOPMessageTopicOverflow)
     auto buffer = std::make_shared<bytes>();
     auto r = message->encode(*buffer.get());
     BOOST_CHECK(r);
+}
+
+BOOST_AUTO_TEST_CASE(hash_map)
+{
+    struct TxHasher
+    {
+        size_t hash(const bcos::crypto::HashType& hash) const { return hasher(hash); }
+
+        bool equal(const bcos::crypto::HashType& lhs, const bcos::crypto::HashType& rhs) const
+        {
+            return lhs == rhs;
+        }
+
+        std::hash<bcos::crypto::HashType> hasher;
+    };
+
+    tbb::concurrent_hash_map<bcos::crypto::HashType, int, TxHasher> testMap;
+
+    testMap.emplace(h256(12345), 100);
+
+    decltype(testMap)::const_accessor it;
+    BOOST_CHECK(testMap.find(it, h256(12345)));
+
+    BOOST_CHECK(!it.empty());
 }
 BOOST_AUTO_TEST_SUITE_END()

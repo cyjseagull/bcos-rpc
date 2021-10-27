@@ -299,6 +299,8 @@ Rpc::Ptr RpcFactory::buildRpc(bcos::boostssl::ws::WsConfig::Ptr _config, const N
     rpc->setWsService(wsService);
     rpc->setAMOP(amop);
     rpc->setEventSub(es);
+
+    jsonRpc->setHashImpl(m_transactionFactory->cryptoSuite()->hashImpl());
     rpc->setJsonRpcImpl(jsonRpc);
 
     BCOS_LOG(INFO) << LOG_DESC("[RPC][FACTORY][buildRpc]")

@@ -74,11 +74,10 @@ void Rpc::asyncNotifyBlockNumber([[maybe_unused]] std::string const& _groupID,
     {
         if (s && s->isConnected())
         {
-            std::string group;
             // TODO: For multiple groups, there should be group params
             // eg: {"blockNumber": 11, "group": "group"}
-            std::string resp = "{\"group\":  " + group +
-                               " ,\"blockNumber\": " + std::to_string(_blockNumber) + "}";
+            std::string resp = "{\"group\":  \"" + _groupID +
+                               "\" ,\"blockNumber\": " + std::to_string(_blockNumber) + "}";
             auto message =
                 m_wsService->messageFactory()->buildMessage(bcos::rpc::MessageType::BLOCK_NOTIFY,
                     std::make_shared<bcos::bytes>(resp.begin(), resp.end()));
@@ -93,6 +92,12 @@ void Rpc::asyncNotifyBlockNumber([[maybe_unused]] std::string const& _groupID,
 
     WEBSOCKET_SERVICE(INFO) << LOG_BADGE("asyncNotifyBlockNumber")
                             << LOG_KV("blockNumber", _blockNumber) << LOG_KV("ss size", ss.size());
+}
+
+void Rpc::asyncNotifyTransactionResult([[maybe_unused]] const std::string_view& groupID,
+    bcos::crypto::HashType txHash, bcos::protocol::TransactionSubmitResult::Ptr result)
+{
+    m_jsonRpcImpl->notifyTransactionResult(txHash, std::move(result));
 }
 
 /**
