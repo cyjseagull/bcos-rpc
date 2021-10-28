@@ -86,6 +86,8 @@ void JsonRpcImpl_2_0::initMethod()
         &JsonRpcImpl_2_0::getGroupListI, this, std::placeholders::_1, std::placeholders::_2);
     m_methodToFunc["getGroupInfo"] = std::bind(
         &JsonRpcImpl_2_0::getGroupInfoI, this, std::placeholders::_1, std::placeholders::_2);
+    m_methodToFunc["getGroupInfoList"] = std::bind(
+        &JsonRpcImpl_2_0::getGroupInfoListI, this, std::placeholders::_1, std::placeholders::_2);
     m_methodToFunc["getGroupNodeInfo"] = std::bind(
         &JsonRpcImpl_2_0::getGroupNodeInfoI, this, std::placeholders::_1, std::placeholders::_2);
 
@@ -1194,6 +1196,15 @@ void JsonRpcImpl_2_0::getGroupInfo(std::string const& _groupID, RespFunc _respFu
         // can only recover the deleted group
         groupInfoToJson(response, groupInfo);
     }
+    _respFunc(nullptr, response);
+}
+
+// get all the group info list
+void JsonRpcImpl_2_0::getGroupInfoList(RespFunc _respFunc)
+{
+    auto groupInfoList = m_groupManager->groupInfoList();
+    Json::Value response(Json::arrayValue);
+    groupInfoListToJson(response, groupInfoList);
     _respFunc(nullptr, response);
 }
 
