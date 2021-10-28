@@ -24,6 +24,7 @@
 #include <bcos-framework/interfaces/gateway/GatewayInterface.h>
 #include <bcos-rpc/jsonrpc/JsonRpcInterface.h>
 #include <json/json.h>
+#include <tbb/concurrent_hash_map.h>
 #include <boost/core/ignore_unused.hpp>
 #include <unordered_map>
 
@@ -131,6 +132,8 @@ public:
     void getGroupList(RespFunc _respFunc) override;
     // get the group information of the given group
     void getGroupInfo(std::string const& _groupID, RespFunc _respFunc) override;
+    // get all the group info list
+    void getGroupInfoList(RespFunc _respFunc) override;
     // get the information of a given node
     void getGroupNodeInfo(
         std::string const& _groupID, std::string const& _nodeName, RespFunc _respFunc) override;
@@ -254,6 +257,12 @@ public:
         (void)_req;
         getGroupInfo(_req[0u].asString(), _respFunc);
     }
+    // get the group information of the given group
+    void getGroupInfoListI(const Json::Value& _req, RespFunc _respFunc)
+    {
+        (void)_req;
+        getGroupInfoList(_respFunc);
+    }
     // get the information of a given node
     void getGroupNodeInfoI(const Json::Value& _req, RespFunc _respFunc)
     {
@@ -276,6 +285,9 @@ public:
     NodeInfo nodeInfo() const { return m_nodeInfo; }
     GroupManager::Ptr groupManager() { return m_groupManager; }
 
+    void notifyTransactionResult(
+        bcos::crypto::HashType txHash, bcos::protocol::TransactionSubmitResult::Ptr result);
+
 private:
     // TODO: check perf influence
     NodeService::Ptr getNodeService(
@@ -297,6 +309,21 @@ private:
     GroupManager::Ptr m_groupManager;
     bcos::gateway::GatewayInterface::Ptr m_gatewayInterface;
     NodeInfo m_nodeInfo;
+
+    struct TxHasher
+    {
+        size_t hash(const bcos::crypto::HashType& hash) const { return hasher(hash); }
+
+        bool equal(const bcos::crypto::HashType& lhs, const bcos::crypto::HashType& rhs) const
+        {
+            return lhs == rhs;
+        }
+
+        std::hash<bcos::crypto::HashType> hasher;
+    };
+
+    tbb::concurrent_hash_map<bcos::crypto::HashType, bcos::protocol::TxSubmitCallback, TxHasher>
+        m_txHash2Callback;
 };
 
 }  // namespace rpc

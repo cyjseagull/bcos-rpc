@@ -91,6 +91,12 @@ void Rpc::asyncNotifyBlockNumber(std::string const& _groupID, std::string const&
                             << LOG_KV("blockNumber", _blockNumber) << LOG_KV("ss size", ss.size());
 }
 
+void Rpc::asyncNotifyTransactionResult([[maybe_unused]] const std::string_view& groupID,
+    bcos::crypto::HashType txHash, bcos::protocol::TransactionSubmitResult::Ptr result)
+{
+    m_jsonRpcImpl->notifyTransactionResult(txHash, std::move(result));
+}
+
 void Rpc::asyncNotifyGroupInfo(
     bcos::group::GroupInfo::Ptr _groupInfo, std::function<void(Error::Ptr&&)> _callback)
 {

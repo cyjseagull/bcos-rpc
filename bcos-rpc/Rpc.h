@@ -67,6 +67,9 @@ public:
         bcos::protocol::BlockNumber _blockNumber,
         std::function<void(Error::Ptr)> _callback) override;
 
+    void asyncNotifyTransactionResult(const std::string_view& groupID,
+        bcos::crypto::HashType txHash,
+        bcos::protocol::TransactionSubmitResult::Ptr result) override;
 
     void asyncNotifyGroupInfo(bcos::group::GroupInfo::Ptr _groupInfo,
         std::function<void(Error::Ptr&&)> _callback) override;
@@ -84,11 +87,6 @@ public:
 
 protected:
     virtual void notifyGroupInfo(bcos::group::GroupInfo::Ptr _groupInfo);
-
-    // TODO: sync from dev
-    void asyncNotifyTransactionResult(const std::string_view&, bcos::crypto::HashType,
-        bcos::protocol::TransactionSubmitResult::Ptr) override
-    {}
 
 private:
     std::shared_ptr<boostssl::ws::WsService> m_wsService;

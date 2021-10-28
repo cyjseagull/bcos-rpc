@@ -7,6 +7,7 @@ file(GLOB HEADERS "*.h")
 aux_source_directory(. SRC_LIST)
 aux_source_directory(./event SRC_LIST)
 aux_source_directory(./jsonrpc SRC_LIST)
+aux_source_directory(./ws SRC_LIST)
 aux_source_directory(./amop SRC_LIST)
 
 add_library(${RPC_TARGET} ${SRC_LIST} ${HEADERS})
