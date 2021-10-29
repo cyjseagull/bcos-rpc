@@ -105,8 +105,6 @@ void Rpc::asyncNotifyGroupInfo(
     {
         _callback(nullptr);
     }
-    auto groupInfo = m_jsonRpcImpl->groupManager()->getGroupInfo(_groupInfo->groupID());
-    notifyGroupInfo(groupInfo);
 }
 
 void Rpc::notifyGroupInfo(bcos::group::GroupInfo::Ptr _groupInfo)

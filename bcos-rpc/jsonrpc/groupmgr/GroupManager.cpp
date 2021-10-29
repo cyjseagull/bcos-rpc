@@ -33,6 +33,7 @@ void GroupManager::updateGroupInfo(bcos::group::GroupInfo::Ptr _groupInfo)
     {
         m_groupInfos[groupID] = _groupInfo;
         GROUP_LOG(INFO) << LOG_DESC("updateGroupInfo") << printGroupInfo(_groupInfo);
+        m_groupInfoNotifier(_groupInfo);
         return;
     }
     auto nodeInfos = _groupInfo->nodeInfos();
@@ -57,6 +58,7 @@ void GroupManager::updateNodeServiceWithoutLock(
         m_nodeServiceList[nodeAppName] = nodeService;
         auto groupInfo = m_groupInfos[_groupID];
         groupInfo->appendNodeInfo(_nodeInfo);
+        m_groupInfoNotifier(groupInfo);
         BCOS_LOG(INFO) << LOG_DESC("buildNodeService for the started new node")
                        << printNodeInfo(_nodeInfo) << printGroupInfo(groupInfo);
     }
