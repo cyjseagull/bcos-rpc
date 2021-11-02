@@ -24,11 +24,12 @@
 #include <bcos-framework/interfaces/rpc/RPCInterface.h>
 #include <bcos-framework/libprotocol/amop/AMOPRequest.h>
 #include <tarscpp/servant/Application.h>
+#define AMOP_CLIENT_LOG(level) BCOS_LOG(level) << LOG_BADGE("AMOPClient")
 namespace bcos
 {
 namespace rpc
 {
-class AMOPClient
+class AMOPClient : public std::enable_shared_from_this<AMOPClient>
 {
 public:
     using Ptr = std::shared_ptr<AMOPClient>;
@@ -103,7 +104,11 @@ protected:
         std::string const& _topic) const
     {
         ReadGuard l(x_topicToSessions);
-        return m_topicToSessions.at(_topic);
+        if (m_topicToSessions.count(_topic))
+        {
+            return m_topicToSessions.at(_topic);
+        }
+        return std::map<std::string, std::shared_ptr<boostssl::ws::WsSession>>();
     }
 
     void onClientDisconnect(std::shared_ptr<boostssl::ws::WsSession> _session);
@@ -121,6 +126,17 @@ protected:
     }
 
     virtual void initMsgHandler();
+
+    void sendMessageToClient(std::string const& _topic,
+        std::shared_ptr<boostssl::ws::WsSession> _selectSession,
+        std::shared_ptr<boostssl::ws::WsMessage> _msg,
+        std::function<void(bcos::Error::Ptr&&, bytesPointer)> _callback);
+
+    bool trySendAMOPRequestToLocalNode(std::shared_ptr<boostssl::ws::WsSession> _session,
+        std::string const& _topic, std::shared_ptr<boostssl::ws::WsMessage> _msg);
+
+    void broadcastAMOPMessage(
+        std::string const& _topic, std::shared_ptr<boostssl::ws::WsMessage> _msg);
 
 protected:
     std::shared_ptr<boostssl::ws::WsService> m_wsService;
