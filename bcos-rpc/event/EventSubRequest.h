@@ -48,19 +48,17 @@ private:
     std::string m_group;
 };
 
-class EventSubSubRequest : public EventSubUnsubRequest
+class EventSubRequest : public EventSubUnsubRequest
 {
 public:
-    using Ptr = std::shared_ptr<EventSubSubRequest>;
+    using Ptr = std::shared_ptr<EventSubRequest>;
 
-    virtual ~EventSubSubRequest() {}
+    virtual ~EventSubRequest() {}
 
 public:
     void setParams(std::shared_ptr<EventSubParams> _params) { m_params = _params; }
     std::shared_ptr<EventSubParams> params() const { return m_params; }
 
-    void setState(std::shared_ptr<EventSubTaskState> _state) { m_state = _state; }
-    std::shared_ptr<EventSubTaskState> state() const { return m_state; }
     std::string generateJson() const override;
     bool fromJson(const std::string& _request) override;
 

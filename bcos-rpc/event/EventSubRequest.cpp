@@ -107,7 +107,7 @@ bool EventSubUnsubRequest::fromJson(const std::string& _request)
 }
 
 
-std::string EventSubSubRequest::generateJson() const
+std::string EventSubRequest::generateJson() const
 {
     /*
     {
@@ -171,7 +171,7 @@ std::string EventSubSubRequest::generateJson() const
     return result;
 }
 
-bool EventSubSubRequest::fromJson(const std::string& _request)
+bool EventSubRequest::fromJson(const std::string& _request)
 {
     std::string id;
     std::string group;
@@ -227,7 +227,13 @@ bool EventSubSubRequest::fromJson(const std::string& _request)
                 auto& jAddresses = jParams["addresses"];
                 for (Json::Value::ArrayIndex index = 0; index < jAddresses.size(); ++index)
                 {
-                    params->addAddress(jAddresses[index].asString());
+                    std::string address = jAddresses[index].asString();
+                    if (address.compare(0, 2, "0x") == 0)
+                    {
+                        address = address.substr(2);
+                        std::transform(address.begin(), address.end(), address.begin(), ::tolower);
+                    }
+                    params->addAddress(address);
                 }
             }
 
@@ -260,7 +266,7 @@ bool EventSubSubRequest::fromJson(const std::string& _request)
 
             setId(id);
             setGroup(group);
-            m_params = params;
+            setParams(params);
 
             EVENT_REQUEST(INFO) << LOG_BADGE("fromJson")
                                 << LOG_DESC("parse event sub request success")

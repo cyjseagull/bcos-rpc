@@ -18,6 +18,8 @@
  * @date 2021-09-10
  */
 
+#include "libutilities/BoostLog.h"
+#include <bcos-rpc/event/Common.h>
 #include <bcos-rpc/event/EventSubMatcher.h>
 
 using namespace bcos;
@@ -77,6 +79,15 @@ bool EventSubMatcher::matches(
     const auto& addresses = _params->addresses();
     const auto& topics = _params->topics();
 
+    EVENT_MATCH(INFO) << LOG_BADGE("matches") << LOG_KV("address", _logEntry.address())
+                      << LOG_KV("topics size", _logEntry.topics().size());
+
+    for (const auto& topic : _logEntry.topics())
+    {
+        EVENT_MATCH(INFO) << LOG_BADGE("matches") << LOG_KV("address", _logEntry.address())
+                          << LOG_KV("topic", topic) << LOG_KV("hex topic", topic.hex());
+    }
+
     // An empty address array matches all values otherwise log.address must be in addresses
     if (!addresses.empty() && !addresses.count(std::string(_logEntry.address())))
     {
@@ -87,8 +98,8 @@ bool EventSubMatcher::matches(
     for (unsigned i = 0; i < EVENT_LOG_TOPICS_MAX_INDEX; ++i)
     {
         const auto& logTopics = _logEntry.topics();
-        // The corresponding topic must be the same
-        if (!topics[i].empty() && (logTopics.size() < i || !topics[i].count(logTopics[i].hex())))
+        if (topics.size() > i && !topics[i].empty() &&
+            (logTopics.size() < i || !topics[i].count(logTopics[i].hex())))
         {
             isMatch = false;
             break;
