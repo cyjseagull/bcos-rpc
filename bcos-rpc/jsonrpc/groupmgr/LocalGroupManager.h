@@ -69,7 +69,7 @@ public:
         return m_groupInfo->nodeInfo(_nodeName);
     }
 
-    virtual void updateGroupBlockInfo(
+    void updateGroupBlockInfo(
         std::string const&, std::string const&, bcos::protocol::BlockNumber) override
     {}
 

@@ -54,8 +54,8 @@ public:
 
     virtual ~Rpc() { stop(); }
 
-    virtual void start() override;
-    virtual void stop() override;
+    void start() override;
+    void stop() override;
 
     /**
      * @brief: notify blockNumber to rpc
@@ -63,7 +63,7 @@ public:
      * @param _callback: resp callback
      * @return void
      */
-    virtual void asyncNotifyBlockNumber(std::string const& _groupID, std::string const& _nodeName,
+    void asyncNotifyBlockNumber(std::string const& _groupID, std::string const& _nodeName,
         bcos::protocol::BlockNumber _blockNumber,
         std::function<void(Error::Ptr)> _callback) override;
 

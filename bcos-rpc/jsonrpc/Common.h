@@ -47,7 +47,7 @@ class JsonRpcException : public std::exception
 {
 public:
     JsonRpcException(int32_t _code, std::string const& _msg) : m_code(_code), m_msg(_msg) {}
-    virtual const char* what() const noexcept override { return m_msg.c_str(); }
+    const char* what() const noexcept override { return m_msg.c_str(); }
 
 public:
     int32_t code() const noexcept { return m_code; }
