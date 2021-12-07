@@ -30,3 +30,8 @@
 *.exe
 *.out
 *.app
+
+build**
+.idea**
+bcos-cmake-scripts**
+.DS_Store
